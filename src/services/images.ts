@@ -111,38 +111,63 @@ export async function presignUpload(
  * Called by the browser once the PUT finishes. The object is verified by
  * HEAD — its real size decides, not what the client claimed.
  */
+export interface ConfirmDeps {
+  statObject: (config: s3.S3Config, key: string) => Promise<s3.ObjectStat>;
+  deleteObject: (config: s3.S3Config, key: string) => Promise<void>;
+}
+
+const defaultConfirmDeps: ConfirmDeps = {
+  statObject: s3.statObject,
+  deleteObject: s3.deleteObject
+};
+
+/**
+ * Called by the browser once the PUT succeeds.
+ *
+ * Deliberately non-destructive: if the object cannot be verified, the row is
+ * left in place so a retry can succeed and so the daily purge — not this
+ * request — decides what is abandoned. Deleting here once threw away uploads
+ * that were sitting in the bucket.
+ */
 export async function confirmUpload(
   db: D1Database,
   config: s3.S3Config,
-  id: string
+  id: string,
+  deps: ConfirmDeps = defaultConfirmDeps
 ): Promise<ServiceResult<ImageRow>> {
   const row = await imageRepo.findById(db, id);
   if (!row) return { ok: false, status: 404, errors: { _form: 'Upload not found.' } };
 
-  const head = await s3.headObject(config, row.object_key);
-  if (!head.ok) {
-    await imageRepo.remove(db, id);
-    return { ok: false, status: 400, errors: { _form: 'The upload did not reach storage.' } };
+  if (row.status === 'ready') return { ok: true, value: row };
+
+  const stat = await deps.statObject(config, row.object_key);
+  if (!stat.found) {
+    return {
+      ok: false,
+      status: 502,
+      errors: {
+        _form: `Storage could not confirm the upload (HTTP ${stat.status}). The file may have arrived — try again.`
+      }
+    };
   }
 
-  const size = Number(head.headers.get('content-length') ?? 0);
-  if (size > IMAGE_RULES.maxBytes) {
-    await s3.deleteObject(config, row.object_key);
+  if (stat.bytes && stat.bytes > IMAGE_RULES.maxBytes) {
+    await deps.deleteObject(config, row.object_key);
     await imageRepo.remove(db, id);
     return { ok: false, status: 413, errors: { file: 'That image is too large.' } };
   }
 
-  await imageRepo.markReady(db, id, size);
+  await imageRepo.markReady(db, id, stat.bytes ?? 0);
 
   // A profile picture is singular: drop whatever it replaced.
   if (row.kind === 'profile') {
     for (const previous of await imageRepo.listByKind(db, 'profile', id)) {
-      await s3.deleteObject(config, previous.object_key);
+      await deps.deleteObject(config, previous.object_key);
       await imageRepo.remove(db, previous.id);
     }
   }
 
-  return { ok: true, value: { ...row, status: 'ready', bytes: size } };
+  return { ok: true, value: { ...row, status: 'ready', bytes: stat.bytes ?? 0 } };
 }
 
 export function publicUrlFor(key: string): string {
