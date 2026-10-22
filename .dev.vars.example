@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored) for local development.
+ADMIN_TOKEN=change-me
+IP_SALT=change-me-to-32-random-bytes
+TURNSTILE_SECRET=

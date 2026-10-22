@@ -1,0 +1,31 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "massage-feedback"
+main = "src/index.ts"
+compatibility_date = "2024-12-18"
+compatibility_flags = ["nodejs_compat"]
+
+# Static assets from public/ are served from the edge; the Worker handles /api/*
+# and the clean URLs (/feedback, /admin, /privacy).
+[assets]
+directory = "./public"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+
+[vars]
+RATE_LIMIT_MAX = "3"
+TURNSTILE_SITE_KEY = ""
+
+[[d1_databases]]
+binding = "DB"
+database_name = "massage-feedback"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+[observability]
+enabled = true
+
+# Purge the 30-day IP hashes. Runs on the Worker itself, which is why this
+# cannot stay on Cloudflare Pages Functions.
+[triggers]
+crons = ["17 3 * * *"]
