@@ -273,13 +273,34 @@ are exercised by running `npm run dev` and clicking through — see the manual c
 **Manual checklist before release**
 
 - [ ] `/` renders profile, services and published reviews
-- [ ] Star filter and "Load more" both work
+- [ ] Feedback carousel advances on its own and pauses on hover/focus
+- [ ] On a laptop the whole page fits one screen with no scrolling; on a phone it stacks
 - [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
 - [ ] `/admin` and `/admin.html` both return 404
 - [ ] `/<slug>` shows the login gate; wrong credentials are rejected, correct ones open the queue
 - [ ] Eleven wrong sign-ins in a row return `429` with a `Retry-After` header
 - [ ] Published review appears on `/` without a reload
 - [ ] Unknown path returns the 404 page
+
+---
+
+## Layout
+
+One page, two modes, driven purely by CSS:
+
+| Viewport                | Behaviour                                                                        |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| Mobile (< 900 px)       | Single stacked column, generous spacing, normal page scroll                      |
+| Laptop (≥ 900 × 620 px) | Two columns, `height: 100dvh`, page scroll disabled — everything fits one screen |
+
+The desktop rules live at the end of `public/styles.css`. They do not change any markup: the
+same DOM renders both modes. Feedback is shown as a carousel — one card at a time, advancing
+every 6 seconds — which pauses on hover, on keyboard focus, when the tab is hidden, and never
+auto-advances at all when the visitor prefers reduced motion.
+
+If content ever outgrows a very short laptop screen, the safe change is to lower the
+`min-height` in that media query (letting it fall back to the phone layout) rather than
+allowing the page to scroll in a mode that promises it won't.
 
 ---
 

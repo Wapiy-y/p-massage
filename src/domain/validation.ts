@@ -118,7 +118,6 @@ export interface ProfileInput {
   address: string;
   map_url: string;
   instagram: string;
-  note: string;
   hours: OpeningHours[];
 }
 
@@ -160,7 +159,6 @@ export function validateProfile(input: unknown): Validated<ProfileInput> {
       address: clean(raw.address).slice(0, 300),
       map_url: clean(raw.map_url).slice(0, 400),
       instagram: clean(raw.instagram).slice(0, 200),
-      note: clean(raw.note).slice(0, 200),
       hours
     }
   };

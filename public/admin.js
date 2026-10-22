@@ -226,7 +226,6 @@ async function loadProfile() {
   $('pf-phone').value = p.phone || '';
   $('pf-address').value = p.address || '';
   $('pf-map').value = p.map_url || '';
-  $('pf-note').value = p.note || '';
   $('pf-hours').value = (p.hours || []).map((h) => `${h.label} | ${h.value}`).join('\n');
   $('pf-services').value = (data.services || [])
     .map((s) => `${s.name} | ${s.duration_min ?? ''} | ${s.price_rm ?? ''}`)
@@ -263,7 +262,6 @@ $('profile-form').addEventListener('submit', async (e) => {
     phone: $('pf-phone').value,
     address: $('pf-address').value,
     map_url: $('pf-map').value,
-    note: $('pf-note').value,
     hours
   };
 
