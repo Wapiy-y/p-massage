@@ -114,10 +114,8 @@ export interface ProfileInput {
   tagline: string;
   bio: string;
   whatsapp: string;
-  phone: string;
   address: string;
   map_url: string;
-  instagram: string;
   hours: OpeningHours[];
 }
 
@@ -155,10 +153,8 @@ export function validateProfile(input: unknown): Validated<ProfileInput> {
       tagline: clean(raw.tagline).slice(0, 120),
       bio: clean(raw.bio).slice(0, LIMITS.bioMax),
       whatsapp,
-      phone: clean(raw.phone).slice(0, 40),
       address: clean(raw.address).slice(0, 300),
       map_url: clean(raw.map_url).slice(0, 400),
-      instagram: clean(raw.instagram).slice(0, 200),
       hours
     }
   };

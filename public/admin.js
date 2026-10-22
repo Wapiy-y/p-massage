@@ -223,7 +223,6 @@ async function loadProfile() {
   $('pf-tagline').value = p.tagline || '';
   $('pf-bio').value = p.bio || '';
   $('pf-whatsapp').value = p.whatsapp || '';
-  $('pf-phone').value = p.phone || '';
   $('pf-address').value = p.address || '';
   $('pf-map').value = p.map_url || '';
   $('pf-hours').value = (p.hours || []).map((h) => `${h.label} | ${h.value}`).join('\n');
@@ -259,7 +258,6 @@ $('profile-form').addEventListener('submit', async (e) => {
     tagline: $('pf-tagline').value,
     bio: $('pf-bio').value,
     whatsapp: $('pf-whatsapp').value,
-    phone: $('pf-phone').value,
     address: $('pf-address').value,
     map_url: $('pf-map').value,
     hours
