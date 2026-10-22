@@ -43,7 +43,7 @@ a { color: var(--brand-ink); }
 .wrap {
   max-width: 440px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 16px 16px 0;
 }
 
 .page {
@@ -678,6 +678,151 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .carousel-slide.is-active { animation: none; }
 }
 
+
+
+/* Icon-only action button (hero directions) */
+.btn-icon {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------
+   Identity: avatar + name in the profile card
+   ------------------------------------------------------------------ */
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.identity-text {
+  min-width: 0;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-ink);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+}
+
+.avatar.has-photo {
+  background: var(--surface-2);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ------------------------------------------------------------------
+   Gallery strip
+   ------------------------------------------------------------------ */
+.gallery-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gallery-strip img {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+/* ------------------------------------------------------------------
+   Admin photo manager
+   ------------------------------------------------------------------ */
+.photo-actions {
+  display: grid;
+  gap: 18px;
+}
+
+@media (min-width: 420px) {
+  .photo-actions { grid-template-columns: 1fr 1fr; }
+}
+
+.profile-photo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.gallery-thumb {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(34, 31, 27, 0.72);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.thumb-del:hover { background: var(--danger); }
+
+.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 /* ------------------------------------------------------------------
    Desktop: everything on one screen, no page scroll
    Two columns, compact spacing, carousel fills the remaining height.
@@ -707,7 +852,7 @@ details.editor[open] summary::before { transform: rotate(45deg); }
     min-height: 0;
     width: 100%;
     max-width: 1120px;
-    padding: 0 24px;
+    padding: 14px 24px 0;
   }
 
   .topbar {
@@ -723,12 +868,13 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .layout {
     display: grid;
     grid-template-columns: 1.02fr 0.98fr;
-    grid-template-rows: auto auto auto;
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
       'hero services'
       'about services'
-      'hours reviews';
-    gap: 12px 20px;
+      'hours reviews'
+      'gallery gallery';
+    gap: 10px 18px;
     align-content: start;
     flex: 1;
     min-height: 0;
@@ -740,15 +886,25 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   }
 
   .hero { grid-area: hero; }
+
+  /* Smaller avatar and thumbs so four rows still fit 720px. */
+  .avatar { width: 52px; height: 52px; }
+  .identity { gap: 12px; }
+  .gallery-strip img { width: 56px; height: 56px; border-radius: 10px; }
+  .section-head { margin-bottom: 6px; }
+  .rows li { padding: 5px 0; }
+  .svc { padding: 7px 0; }
   .sec-about { grid-area: about; }
   .sec-services { grid-area: services; }
   .sec-hours { grid-area: hours; }
   .sec-reviews { grid-area: reviews; }
+  .sec-gallery { grid-area: gallery; }
+  .sec-gallery[hidden] { display: none; }
 
   /* Long feedback is clamped rather than allowed to push the page. */
   .sec-reviews .carousel-slide .body {
     display: -webkit-box;
-    -webkit-line-clamp: 7;
+    -webkit-line-clamp: 5;
     -webkit-box-orient: vertical;
     overflow: hidden;
   }
@@ -772,12 +928,4 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .btn { min-height: 44px; }
   .review { padding: 14px; }
   .review .body { font-size: 0.92rem; }
-}
-
-/* Icon-only action button (hero directions) */
-.btn-icon {
-  width: 44px;
-  min-width: 44px;
-  padding: 0;
-  flex: none;
 }

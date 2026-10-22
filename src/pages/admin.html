@@ -55,6 +55,45 @@
             <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
           </div>
 
+          <details class="editor card" style="margin-top: 14px" open>
+            <summary>Photos</summary>
+
+            <div class="photo-actions" style="margin-top: 12px">
+              <div class="photo-block">
+                <p class="tiny muted" style="margin: 0 0 6px">Profile photo</p>
+                <div id="profile-photo" class="profile-photo"></div>
+                <label class="btn btn-ghost btn-sm" style="margin-top: 8px">
+                  Upload photo
+                  <input
+                    type="file"
+                    id="profile-input"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                  />
+                </label>
+              </div>
+
+              <div class="photo-block">
+                <p class="tiny muted" style="margin: 0 0 6px">
+                  Gallery <span id="gallery-count"></span>
+                </p>
+                <div id="gallery-grid" class="gallery-grid"></div>
+                <label class="btn btn-ghost btn-sm" id="gallery-add" style="margin-top: 8px">
+                  Add photo
+                  <input
+                    type="file"
+                    id="gallery-input"
+                    accept="image/jpeg,image/png,image/webp"
+                    hidden
+                  />
+                </label>
+              </div>
+            </div>
+
+            <p class="err" id="photo-err"></p>
+            <p class="tiny muted" style="margin: 6px 0 0">JPEG, PNG or WebP, up to 5 MB.</p>
+          </details>
+
           <div class="card" style="margin-top: 14px; padding: 14px">
             <ul class="rows" id="stats"></ul>
           </div>

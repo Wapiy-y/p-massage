@@ -15,8 +15,15 @@ export interface Env {
   RATE_LIMIT_MAX?: string;
   TURNSTILE_SITE_KEY?: string;
 
+  /** Object storage (S3-compatible). Non-secret parts. */
+  S3_ENDPOINT?: string;
+  S3_BUCKET?: string;
+  S3_REGION?: string;
+
   /** Secrets, set with `wrangler secret put`. */
   ADMIN_SLUG?: string;
+  S3_ACCESS_KEY_ID?: string;
+  S3_SECRET_ACCESS_KEY?: string;
   ADMIN_TOKEN?: string;
   SESSION_SECRET?: string;
   IP_SALT?: string;
@@ -84,6 +91,27 @@ export interface PublicReview {
   reply: string | null;
   created_at: number;
   replied_at: number | null;
+}
+
+export type ImageKind = 'profile' | 'gallery';
+
+export interface ImageRow {
+  id: string;
+  kind: ImageKind;
+  object_key: string;
+  content_type: string;
+  bytes: number | null;
+  sort: number;
+  status: 'pending' | 'ready';
+  created_at: number;
+}
+
+/** What the public sees: a URL, never a bucket key. */
+export interface PublicImage {
+  id: string;
+  url: string;
+  width?: number;
+  height?: number;
 }
 
 export interface Summary {

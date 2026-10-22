@@ -18,16 +18,52 @@ function directionsLink(profile) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(profile.address)}`;
 }
 
+function renderAvatar(profile, image) {
+  const node = $('avatar');
+  node.replaceChildren();
+
+  if (image) {
+    const img = document.createElement('img');
+    img.src = image.url;
+    img.alt = `${profile.name}, massage therapist`;
+    img.loading = 'eager';
+    node.append(img);
+    node.classList.add('has-photo');
+    return;
+  }
+
+  node.textContent = initials(profile.name);
+  node.classList.remove('has-photo');
+}
+
+function renderGallery(images) {
+  const section = $('gallery-section');
+  const strip = $('gallery-strip');
+
+  if (!images.length) {
+    section.hidden = true;
+    strip.replaceChildren();
+    return;
+  }
+
+  section.hidden = false;
+  $('gallery-note').textContent = `${images.length} photo${images.length === 1 ? '' : 's'}`;
+  strip.replaceChildren(
+    ...images.map((image) => {
+      const img = document.createElement('img');
+      img.src = image.url;
+      img.alt = '';
+      img.loading = 'lazy';
+      return img;
+    })
+  );
+}
+
 function renderProfile({ profile, services }) {
   if (!profile) return;
 
   document.title = `${profile.name} — massage therapy in Petaling Jaya`;
-  $('monogram').textContent = initials(profile.name);
-  $('top-name').textContent = profile.name;
   $('h-name').textContent = profile.name;
-
-  const location = (profile.tagline || '').split('·').pop();
-  $('top-loc').textContent = (location || 'Massage therapist').trim();
   $('p-tagline').textContent = profile.tagline || '';
   $('p-bio').textContent = profile.bio || '';
   $('wa-btn').href = waLink(profile.whatsapp);
@@ -214,13 +250,18 @@ function initCarousel(reviews) {
 /* ------------------------------------------------------------------ boot */
 
 (async function init() {
-  const [profile, summary, reviews] = await Promise.all([
+  const [profile, summary, reviews, images] = await Promise.all([
     api('/api/profile'),
     api('/api/reviews/summary'),
-    api('/api/reviews?limit=12')
+    api('/api/reviews?limit=12'),
+    api('/api/images')
   ]);
 
-  if (profile.ok && profile.data) renderProfile(profile.data);
+  if (profile.ok && profile.data) {
+    renderProfile(profile.data);
+    renderAvatar(profile.data.profile, images.ok ? images.data.profile : null);
+  }
+  renderGallery(images.ok && images.data ? images.data.gallery ?? [] : []);
   if (summary.ok && summary.data) renderSummary(summary.data);
 
   initCarousel(reviews.ok && reviews.data ? reviews.data.items || [] : []);

@@ -5,6 +5,7 @@ import { hashIp } from '../lib/ip-hash';
 import { clientIp, httpError, isProduction, json, readJson } from '../lib/http';
 import { verifyTurnstile } from '../lib/turnstile';
 import { getPublicContent } from '../services/profile';
+import { listPublicImages } from '../services/images';
 import { listPublishedReviews, reviewSummary, submitReview } from '../services/reviews';
 import type { AppEnv } from '../types';
 
@@ -22,6 +23,8 @@ publicRoutes.get('/api/config', (c) =>
 );
 
 publicRoutes.get('/api/profile', async (c) => json(c, 200, await getPublicContent(c.env.DB)));
+
+publicRoutes.get('/api/images', async (c) => json(c, 200, await listPublicImages(c.env.DB)));
 
 publicRoutes.get('/api/reviews/summary', async (c) => json(c, 200, await reviewSummary(c.env.DB)));
 
