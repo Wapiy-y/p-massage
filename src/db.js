@@ -1,5 +1,11 @@
 'use strict';
 /**
+ * DEPRECATED — superseded by the Cloudflare Worker in src/index.ts (Hono + D1).
+ * Kept only as a reference for the original dependency-free Node implementation.
+ * Nothing runs this file: `npm run dev` starts the Worker, `npm test` runs Vitest.
+ */
+
+/**
  * Data layer. Mirrors the D1 schema from the plan 1:1 so this can be ported to
  * Cloudflare D1 by swapping DatabaseSync for the D1 binding and awaiting queries.
  */

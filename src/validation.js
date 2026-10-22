@@ -1,5 +1,11 @@
 'use strict';
 /**
+ * DEPRECATED — superseded by the Cloudflare Worker in src/index.ts (Hono + D1).
+ * Kept only as a reference for the original dependency-free Node implementation.
+ * Nothing runs this file: `npm run dev` starts the Worker, `npm test` runs Vitest.
+ */
+
+/**
  * Validation shared by the API. In the Cloudflare port this file becomes the
  * Zod schema (shared/schema.ts) referenced by both client and server.
  */

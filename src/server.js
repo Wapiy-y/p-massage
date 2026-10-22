@@ -1,5 +1,11 @@
 'use strict';
 /**
+ * DEPRECATED — superseded by the Cloudflare Worker in src/index.ts (Hono + D1).
+ * Kept only as a reference for the original dependency-free Node implementation.
+ * Nothing runs this file: `npm run dev` starts the Worker, `npm test` runs Vitest.
+ */
+
+/**
  * Zero-dependency HTTP server.
  * Route shapes match the plan's API table exactly so the Cloudflare Workers/D1
  * port is a binding swap: db.* -> await d1.prepare(...).bind(...).all()
