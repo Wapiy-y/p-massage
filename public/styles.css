@@ -604,17 +604,45 @@ details.editor[open] summary::before { transform: rotate(45deg); }
 }
 
 .carousel-track {
-  display: flex;
-  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
-  will-change: transform;
+  position: relative;
 }
 
+/*
+ * Only the active slide is displayed. A horizontal flex track would make every
+ * slide as tall as the longest review, leaving short ones padded with blank
+ * space; this way each card hugs its own content.
+ */
 .carousel-slide {
-  min-width: 100%;
-  flex: 0 0 100%;
+  display: none;
 }
 
-.carousel-slide .review { margin: 0; }
+.carousel-slide.is-active {
+  display: block;
+  animation: carousel-fade 0.32s ease both;
+}
+
+@keyframes carousel-fade {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.carousel-slide .review {
+  margin: 0;
+}
+
+/* One long review must not stretch every other slide. */
+.carousel-slide .body {
+  display: -webkit-box;
+  -webkit-line-clamp: 9;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 .carousel-dots {
   display: flex;
@@ -647,7 +675,7 @@ details.editor[open] summary::before { transform: rotate(45deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .carousel-track { transition: none; }
+  .carousel-slide.is-active { animation: none; }
 }
 
 /* ------------------------------------------------------------------
@@ -687,60 +715,38 @@ details.editor[open] summary::before { transform: rotate(45deg); }
     flex: none;
   }
 
+  /*
+   * Two balanced columns without changing the DOM: the phone layout keeps its
+   * reading order, and grid areas decide placement on a laptop. Prices sit
+   * opposite the profile so neither column ends long before the other.
+   */
   .layout {
     display: grid;
-    grid-template-columns: 1.04fr 0.96fr;
-    gap: 18px;
+    grid-template-columns: 1.02fr 0.98fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      'hero services'
+      'about services'
+      'hours reviews';
+    gap: 12px 20px;
+    align-content: start;
     flex: 1;
     min-height: 0;
   }
 
-  .col {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  .col section {
+  .layout > section {
     margin-top: 0;
-  }
-
-  .col-side .reviews {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
     min-height: 0;
   }
 
-  .col-side .carousel {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .col-side .carousel-viewport {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .col-side .carousel-track {
-    height: 100%;
-    align-items: stretch;
-  }
-
-  .col-side .carousel-slide {
-    height: 100%;
-  }
-
-  .col-side .carousel-slide .review {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
+  .hero { grid-area: hero; }
+  .sec-about { grid-area: about; }
+  .sec-services { grid-area: services; }
+  .sec-hours { grid-area: hours; }
+  .sec-reviews { grid-area: reviews; }
 
   /* Long feedback is clamped rather than allowed to push the page. */
-  .col-side .carousel-slide .body {
+  .sec-reviews .carousel-slide .body {
     display: -webkit-box;
     -webkit-line-clamp: 7;
     -webkit-box-orient: vertical;
@@ -766,4 +772,12 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .btn { min-height: 44px; }
   .review { padding: 14px; }
   .review .body { font-size: 0.92rem; }
+}
+
+/* Icon-only action button (hero directions) */
+.btn-icon {
+  width: 44px;
+  min-width: 44px;
+  padding: 0;
+  flex: none;
 }

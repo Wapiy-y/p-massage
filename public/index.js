@@ -12,6 +12,12 @@ function waLink(number) {
   return `https://wa.me/${digits}?text=${text}`;
 }
 
+function directionsLink(profile) {
+  if (profile.map_url) return profile.map_url;
+  if (!profile.address) return null;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(profile.address)}`;
+}
+
 function renderProfile({ profile, services }) {
   if (!profile) return;
 
@@ -25,6 +31,15 @@ function renderProfile({ profile, services }) {
   $('p-tagline').textContent = profile.tagline || '';
   $('p-bio').textContent = profile.bio || '';
   $('wa-btn').href = waLink(profile.whatsapp);
+
+  const directions = directionsLink(profile);
+  const mapButton = $('map-btn');
+  if (directions) {
+    mapButton.href = directions;
+  } else {
+    // Keep the layout stable rather than showing a dead control.
+    mapButton.hidden = true;
+  }
 
   const serviceList = $('svc-list');
   serviceList.replaceChildren();
@@ -50,27 +65,6 @@ function renderProfile({ profile, services }) {
   hours.replaceChildren();
   for (const entry of profile.hours || []) {
     hours.append(el('li', {}, [el('span', { text: entry.label }), el('span', { text: entry.value })]));
-  }
-
-  const contact = $('contact-rows');
-  contact.replaceChildren();
-  if (profile.address) {
-    contact.append(el('li', {}, [el('span', { text: 'Address' }), el('span', { text: profile.address })]));
-  }
-  if (profile.phone) {
-    contact.append(el('li', {}, [el('span', { text: 'Phone' }), el('span', { text: profile.phone })]));
-  }
-  if (profile.instagram) {
-    contact.append(
-      el('li', {}, [el('span', { text: 'Instagram' }), el('span', { text: profile.instagram })])
-    );
-  }
-  if (profile.map_url) {
-    const row = el('li', {}, [el('span', { text: 'Map' }), el('span', {}, [])]);
-    row.lastChild.append(
-      el('a', { href: profile.map_url, target: '_blank', rel: 'noopener', text: 'Open in Maps' })
-    );
-    contact.append(row);
   }
 }
 
@@ -127,7 +121,7 @@ function emptySlide(message) {
  * person picked does not slide away underneath them.
  */
 function initCarousel(reviews) {
-  const track = $('carousel-track');
+  const viewport = $('carousel-track');
   const dots = $('carousel-dots');
   const root = $('carousel');
 
@@ -135,7 +129,7 @@ function initCarousel(reviews) {
     ? reviews.map(slide)
     : [emptySlide('No feedback published yet.')];
 
-  track.replaceChildren(...slides);
+  viewport.replaceChildren(...slides);
   dots.replaceChildren();
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -163,10 +157,11 @@ function initCarousel(reviews) {
 
   function show(next) {
     index = (next + slides.length) % slides.length;
-    track.style.transform = `translateX(-${index * 100}%)`;
 
     slides.forEach((node, i) => {
-      node.setAttribute('aria-hidden', i === index ? 'false' : 'true');
+      const active = i === index;
+      node.classList.toggle('is-active', active);
+      node.setAttribute('aria-hidden', active ? 'false' : 'true');
     });
     dots.querySelectorAll('.carousel-dot').forEach((dot, i) => {
       dot.setAttribute('aria-current', i === index ? 'true' : 'false');

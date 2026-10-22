@@ -61,10 +61,8 @@ export interface Profile {
   tagline: string;
   bio: string;
   whatsapp: string;
-  phone: string;
   address: string;
   map_url: string;
-  instagram: string;
   hours: OpeningHours[];
 }
 

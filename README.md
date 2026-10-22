@@ -273,6 +273,7 @@ are exercised by running `npm run dev` and clicking through — see the manual c
 **Manual checklist before release**
 
 - [ ] `/` renders profile, services and published reviews
+- [ ] The location button in the profile card opens directions in a new tab
 - [ ] Feedback carousel advances on its own and pauses on hover/focus
 - [ ] On a laptop the whole page fits one screen with no scrolling; on a phone it stacks
 - [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
