@@ -65,7 +65,6 @@ export interface Profile {
   address: string;
   map_url: string;
   instagram: string;
-  note: string;
   hours: OpeningHours[];
 }
 

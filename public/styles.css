@@ -264,48 +264,8 @@ section { margin-top: 26px; }
 .rows li span:last-child { text-align: right; }
 
 /* ------------------------------------------------------------------
-   Filter chips
-   ------------------------------------------------------------------ */
-.chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding: 2px 16px 10px;
-  margin: 0 -16px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.chips::-webkit-scrollbar { display: none; }
-
-.chip {
-  flex: none;
-  min-height: 38px;
-  padding: 0 14px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: 0.85rem;
-  font-weight: 540;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  -webkit-tap-highlight-color: transparent;
-}
-.chip[aria-pressed="true"] {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #fff;
-}
-.chip .n { opacity: 0.65; font-size: 0.78rem; }
-
-/* ------------------------------------------------------------------
    Review cards
    ------------------------------------------------------------------ */
-.feed { display: grid; gap: 12px; }
-
 .review {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -365,21 +325,6 @@ section { margin-top: 26px; }
 }
 
 /* ------------------------------------------------------------------
-   Sticky CTA
-   ------------------------------------------------------------------ */
-.sticky {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 30;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: linear-gradient(to top, var(--bg) 55%, rgba(251, 248, 244, 0.85) 100%);
-  backdrop-filter: blur(6px);
-}
-.sticky .inner { max-width: 440px; margin: 0 auto; }
-
-/* ------------------------------------------------------------------
    Forms
    ------------------------------------------------------------------ */
 .field { margin-bottom: 20px; }
@@ -422,8 +367,8 @@ input:focus, textarea:focus, select:focus {
   position: absolute;
   right: 16px;
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
   transform: translateY(-70%) rotate(45deg);
@@ -598,8 +543,8 @@ details.editor summary {
 details.editor summary::-webkit-details-marker { display: none; }
 details.editor summary::before {
   content: "";
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
   transform: rotate(-45deg);
@@ -615,21 +560,6 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   border: 1px dashed var(--line);
   border-radius: var(--radius);
 }
-
-/* ------------------------------------------------------------------
-   Skeleton loading
-   ------------------------------------------------------------------ */
-.sk {
-  background: linear-gradient(90deg, #f0eae1 25%, #f7f2eb 37%, #f0eae1 63%);
-  background-size: 400% 100%;
-  animation: shimmer 1.3s ease infinite;
-  border-radius: 8px;
-}
-@keyframes shimmer {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0 50%; }
-}
-.sk-card { height: 118px; border-radius: var(--radius); }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
@@ -657,4 +587,183 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   color: var(--muted);
   font-size: 0.88rem;
   font-weight: 540;
+}
+
+/* ------------------------------------------------------------------
+   Feedback carousel
+   ------------------------------------------------------------------ */
+.carousel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.carousel-viewport {
+  overflow: hidden;
+  border-radius: var(--radius);
+}
+
+.carousel-track {
+  display: flex;
+  transition: transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
+  will-change: transform;
+}
+
+.carousel-slide {
+  min-width: 100%;
+  flex: 0 0 100%;
+}
+
+.carousel-slide .review { margin: 0; }
+
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 12px;
+  min-height: 20px;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #c9bcab;
+  cursor: pointer;
+  transition: width 0.2s ease, background-color 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.carousel-dot[aria-current='true'] {
+  width: 22px;
+  background: var(--brand);
+}
+
+.carousel-dot:focus-visible {
+  outline: 2px solid rgba(30, 107, 87, 0.45);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carousel-track { transition: none; }
+}
+
+/* ------------------------------------------------------------------
+   Desktop: everything on one screen, no page scroll
+   Two columns, compact spacing, carousel fills the remaining height.
+   Mobile keeps the stacked layout above untouched.
+   ------------------------------------------------------------------ */
+@media (min-width: 900px) and (min-height: 620px) {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  .page {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding-bottom: 0;
+  }
+
+  .wrap {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 1120px;
+    padding: 0 24px;
+  }
+
+  .topbar {
+    padding: 10px 0 6px;
+    flex: none;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1.04fr 0.96fr;
+    gap: 18px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .col section {
+    margin-top: 0;
+  }
+
+  .col-side .reviews {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .col-side .carousel {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .col-side .carousel-viewport {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .col-side .carousel-track {
+    height: 100%;
+    align-items: stretch;
+  }
+
+  .col-side .carousel-slide {
+    height: 100%;
+  }
+
+  .col-side .carousel-slide .review {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Long feedback is clamped rather than allowed to push the page. */
+  .col-side .carousel-slide .body {
+    display: -webkit-box;
+    -webkit-line-clamp: 7;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .footer {
+    flex: none;
+    margin-top: 0;
+    padding: 8px 0 6px;
+  }
+
+  /* Tighter rhythm so the two columns fit ~640px of height. */
+  h1 { font-size: 1.35rem; }
+  h2 { font-size: 0.95rem; }
+  .card { padding: 14px; }
+  .section-head { margin-bottom: 8px; }
+  .hero .eyebrow { margin-bottom: 4px; }
+  .rating-line { margin-top: 10px; }
+  .cta-row { margin-top: 12px; }
+  .svc { padding: 8px 0; }
+  .rows li { padding: 6px 0; }
+  .btn { min-height: 44px; }
+  .review { padding: 14px; }
+  .review .body { font-size: 0.92rem; }
 }
