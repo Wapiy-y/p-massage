@@ -15,11 +15,16 @@ export const LIMITS = {
   pageSize: 20,
   pageSizeMax: 50,
   /** Rows returned to the moderation queue. */
-  moderationPageSize: 200
+  moderationPageSize: 200,
+  /** Failed admin logins allowed per window before throttling. */
+  loginAttemptMax: 10
 } as const;
 
 /** Rate limiting counts in fixed one-hour windows. */
 export const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+/** Failed admin logins are counted over a shorter window. */
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 
 /** IP hashes older than this are purged by the scheduled handler. */
 export const IP_HASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;

@@ -1,7 +1,11 @@
 /** Therapist-only HTTP surface: session handling and moderation. */
 import { Hono } from 'hono';
+import { LIMITS, LOGIN_WINDOW_MS } from '../config/limits';
 import { checkPassphrase, buildCookie, clearCookie, issueSession } from '../lib/auth';
-import { isProduction, json, jsonWithCookie, readJson } from '../lib/http';
+import { clientIp, isProduction, json, jsonWithCookie, readJson } from '../lib/http';
+import { hashIp } from '../lib/ip-hash';
+import * as rateLimitRepo from '../repositories/rate-limit';
+import { authenticateAdmin, type AttemptCounter } from '../services/admin-auth';
 import { hasAdminAccess, requireAdmin } from '../middleware/require-admin';
 import { getEditableContent, updateContent } from '../services/profile';
 import { deleteReview, moderationQueue, moderateReview } from '../services/reviews';
@@ -13,10 +17,38 @@ export const adminRoutes = new Hono<AppEnv>();
 
 adminRoutes.post('/api/admin/login', async (c) => {
   const body = await readJson(c, 2048);
-  const expected = c.env.ADMIN_TOKEN;
+  const expected = c.env.ADMIN_TOKEN ?? '';
 
-  if (!expected) return json(c, 500, { message: 'ADMIN_TOKEN is not configured.' });
-  if (typeof body.token !== 'string' || !(await checkPassphrase(body.token, expected))) {
+  // Count failures per hashed caller, not per account: there is one account, so
+  // throttling by caller is what actually slows a guessing attack.
+  const key = `login:${await hashIp(clientIp(c), c.env.IP_SALT || 'dev-only-salt')}`;
+  const counter: AttemptCounter = {
+    peek: () => rateLimitRepo.peek(c.env.DB, key, LOGIN_WINDOW_MS),
+    record: async () => {
+      await rateLimitRepo.increment(c.env.DB, key, LOGIN_WINDOW_MS);
+    }
+  };
+
+  const result = await authenticateAdmin({
+    token: typeof body.token === 'string' ? body.token : '',
+    expected,
+    maxAttempts: LIMITS.loginAttemptMax,
+    counter,
+    verify: checkPassphrase
+  });
+
+  if (!result.ok) {
+    if (result.reason === 'unconfigured') {
+      return json(c, 500, { message: 'ADMIN_TOKEN is not configured.' });
+    }
+    if (result.reason === 'rate-limited') {
+      const minutes = Math.max(1, Math.ceil(result.retryAfterMs / 60_000));
+      const response = json(c, 429, {
+        message: `Too many wrong passphrases. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
+      });
+      response.headers.set('retry-after', String(Math.ceil(result.retryAfterMs / 1000)));
+      return response;
+    }
     return json(c, 401, { message: 'Wrong passphrase.' });
   }
 
