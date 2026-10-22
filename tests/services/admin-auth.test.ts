@@ -1,10 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { authenticateAdmin, type AttemptCounter } from '../../src/services/admin-auth';
+import {
+  authenticateAdmin,
+  type AttemptCounter,
+  type AdminUser
+} from '../../src/services/admin-auth';
 
-const PASSPHRASE = 'correct-horse-battery-staple';
+const USERNAME = 'admin';
+const PASSWORD = 'correct-horse-battery-staple';
 const WINDOW_MS = 15 * 60 * 1000;
 
-/** In-memory stand-in for the D1 counter. */
+const USER: AdminUser = {
+  id: 'admin_seed',
+  username: USERNAME,
+  password_hash: 'stored-hash'
+};
+
+/** In-memory stand-in for the D1 attempt counter. */
 function fakeCounter(initial = 0) {
   const state = { count: initial, recorded: 0 };
   const counter: AttemptCounter = {
@@ -18,81 +29,87 @@ function fakeCounter(initial = 0) {
   return { counter, state };
 }
 
-const verify = (input: string, expected: string) => Promise.resolve(input === expected);
+/** Fake password check: the stored hash is the password in this fixture. */
+const verify = (password: string, storedHash: string) =>
+  Promise.resolve(storedHash === 'stored-hash' && password === PASSWORD);
 
-function attempt(token: string, counter: AttemptCounter) {
+const lookup = (username: string) => Promise.resolve(username === USERNAME ? USER : null);
+
+function attempt(
+  credentials: { username?: string; password?: string },
+  counter: AttemptCounter,
+  overrides: { lookup?: typeof lookup; verify?: typeof verify } = {}
+) {
   return authenticateAdmin({
-    token,
-    expected: PASSPHRASE,
+    username: credentials.username ?? USERNAME,
+    password: credentials.password ?? PASSWORD,
     maxAttempts: 3,
     counter,
-    verify
+    lookup: overrides.lookup ?? lookup,
+    verify: overrides.verify ?? verify
   });
 }
 
 describe('authenticateAdmin', () => {
-  it('accepts the correct passphrase', async () => {
+  it('accepts the seeded account on correct credentials', async () => {
     const { counter } = fakeCounter();
-    await expect(attempt(PASSPHRASE, counter)).resolves.toEqual({ ok: true });
+    const result = await attempt({}, counter);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.user.username).toBe(USERNAME);
   });
 
-  it('rejects a wrong passphrase and records the failure', async () => {
+  it('rejects a wrong password and records the failure', async () => {
     const { counter, state } = fakeCounter();
-    const result = await attempt('wrong', counter);
+    const result = await attempt({ password: 'wrong' }, counter);
     expect(result).toEqual({ ok: false, reason: 'invalid' });
     expect(state.recorded).toBe(1);
   });
 
+  it('rejects an unknown username and still records a failure', async () => {
+    const { counter, state } = fakeCounter();
+    const result = await attempt({ username: 'someone-else' }, counter);
+    expect(result).toEqual({ ok: false, reason: 'invalid' });
+    expect(state.recorded).toBe(1);
+  });
+
+  it('still runs the password check for an unknown user, to avoid leaking which failed', async () => {
+    const { counter } = fakeCounter();
+    const spy = vi.fn(verify);
+    await attempt({ username: 'ghost' }, counter, { verify: spy });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
   it('does not spend budget on a successful login', async () => {
     const { counter, state } = fakeCounter();
-    await attempt(PASSPHRASE, counter);
-    await attempt(PASSPHRASE, counter);
+    await attempt({}, counter);
+    await attempt({}, counter);
     expect(state.recorded).toBe(0);
   });
 
-  it('throttles once the failure budget is used, without checking the token', async () => {
-    const { counter } = fakeCounter(3); // budget is 3
+  it('throttles once the failure budget is used, without checking credentials', async () => {
+    const { counter } = fakeCounter(3);
     const spy = vi.fn(verify);
 
-    const result = await authenticateAdmin({
-      token: PASSPHRASE, // correct, and still refused
-      expected: PASSPHRASE,
-      maxAttempts: 3,
-      counter,
-      verify: spy
-    });
+    const result = await attempt({}, counter, { verify: spy });
 
     expect(result).toMatchObject({ ok: false, reason: 'rate-limited' });
     expect(spy).not.toHaveBeenCalled();
-    if (!result.ok && result.reason === 'rate-limited') {
-      expect(result.retryAfterMs).toBe(WINDOW_MS);
-    }
+    if (!result.ok) expect(result.retryAfterMs).toBe(WINDOW_MS);
   });
 
-  it('still allows a correct passphrase while under the limit but near it', async () => {
-    const { counter, state } = fakeCounter(2); // one attempt left
-    await expect(attempt(PASSPHRASE, counter)).resolves.toEqual({ ok: true });
+  it('allows a correct login while under the limit but near it', async () => {
+    const { counter, state } = fakeCounter(2);
+    const result = await attempt({}, counter);
+    expect(result.ok).toBe(true);
     expect(state.count).toBe(2);
   });
 
-  it('locks out after the configured number of consecutive failures', async () => {
+  it('locks out after the configured number of failures', async () => {
     const { counter } = fakeCounter();
     for (let i = 0; i < 3; i++) {
-      expect((await attempt('wrong', counter)).ok).toBe(false);
+      expect((await attempt({ password: 'wrong' }, counter)).ok).toBe(false);
     }
-    const blocked = await attempt(PASSPHRASE, counter);
+    const blocked = await attempt({}, counter);
     expect(blocked).toMatchObject({ ok: false, reason: 'rate-limited' });
-  });
-
-  it('reports an unconfigured deployment rather than rejecting a valid token', async () => {
-    const { counter } = fakeCounter();
-    const result = await authenticateAdmin({
-      token: 'anything',
-      expected: '', // ADMIN_TOKEN not set
-      maxAttempts: 3,
-      counter,
-      verify
-    });
-    expect(result).toEqual({ ok: false, reason: 'unconfigured' });
   });
 });

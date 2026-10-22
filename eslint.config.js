@@ -37,8 +37,8 @@ export default tseslint.config(
   },
 
   {
-    // Browser ES modules and this config file: no type information available.
-    files: ['public/**/*.js', 'eslint.config.js'],
+    // Browser ES modules, Node scripts and this config file: no type information.
+    files: ['public/**/*.js', 'scripts/**/*.mjs', 'eslint.config.js'],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: {
       ecmaVersion: 'latest',

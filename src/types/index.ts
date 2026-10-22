@@ -16,7 +16,9 @@ export interface Env {
   TURNSTILE_SITE_KEY?: string;
 
   /** Secrets, set with `wrangler secret put`. */
+  ADMIN_SLUG?: string;
   ADMIN_TOKEN?: string;
+  SESSION_SECRET?: string;
   IP_SALT?: string;
   TURNSTILE_SECRET?: string;
 }

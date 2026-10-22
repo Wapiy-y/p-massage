@@ -1,12 +1,18 @@
 import { api, starsHtml, relativeDate } from '/lib.js';
 
 const $ = (id) => document.getElementById(id);
+
+// The admin area lives at a secret slug; the API mirrors it, so derive the
+// base from the address this page was served from rather than hard-coding it.
+const SLUG = location.pathname.replace(/^\/+|\/+$/g, '');
+const API = `/api/${SLUG}`;
+
 let currentStatus = 'pending';
 
 /* ------------------------------------------------------------------ auth */
 
 async function boot() {
-  const { ok, data } = await api('/api/admin/session');
+  const { ok, data } = await api(`${API}/session`);
   if (ok && data?.authed) {
     $('gate').hidden = true;
     $('app').hidden = false;
@@ -20,12 +26,16 @@ async function boot() {
 $('gate-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   $('gate-alert').textContent = '';
-  const { res, data } = await api('/api/admin/login', {
+  const usernameInput = $('username');
+  const passwordInput = $('password');
+
+  const { res, data } = await api(`${API}/login`, {
     method: 'POST',
-    body: JSON.stringify({ token: $('token').value })
+    body: JSON.stringify({ username: usernameInput.value, password: passwordInput.value })
   });
+
   if (res.ok) {
-    $('token').value = '';
+    passwordInput.value = '';
     await boot();
   } else {
     $('gate-alert').textContent = data?.message || 'Sign in failed.';
@@ -33,7 +43,7 @@ $('gate-form').addEventListener('submit', async (e) => {
 });
 
 $('logout-btn').addEventListener('click', async () => {
-  await api('/api/admin/logout', { method: 'POST' });
+  await api(`${API}/logout`, { method: 'POST' });
   location.reload();
 });
 
@@ -98,7 +108,7 @@ function card(r) {
   if (r.status !== 'approved') {
     actions.append(
       mk('Publish', 'btn-primary', async () => {
-        await api(`/api/admin/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) });
+        await api(`${API}/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'approved' }) });
         refresh();
       })
     );
@@ -106,7 +116,7 @@ function card(r) {
   if (r.status !== 'rejected') {
     actions.append(
       mk(r.status === 'approved' ? 'Unpublish' : 'Hide', 'btn-ghost', async () => {
-        await api(`/api/admin/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) });
+        await api(`${API}/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ status: 'rejected' }) });
         refresh();
       })
     );
@@ -114,7 +124,7 @@ function card(r) {
   actions.append(
     mk('Delete', 'btn-danger', async () => {
       if (!confirm('Delete this review permanently?')) return;
-      await api(`/api/admin/reviews/${r.id}`, { method: 'DELETE' });
+      await api(`${API}/reviews/${r.id}`, { method: 'DELETE' });
       refresh();
     })
   );
@@ -140,7 +150,7 @@ function card(r) {
   form.append(ta, save);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    await api(`/api/admin/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ reply: ta.value }) });
+    await api(`${API}/reviews/${r.id}`, { method: 'PATCH', body: JSON.stringify({ reply: ta.value }) });
     refresh();
   });
   details.append(sum, form);
@@ -150,7 +160,7 @@ function card(r) {
 }
 
 async function loadQueue() {
-  const { ok, data } = await api(`/api/admin/reviews?status=${currentStatus}`);
+  const { ok, data } = await api(`${API}/reviews?status=${currentStatus}`);
   const queue = $('queue');
   queue.replaceChildren();
   if (!ok || !data) {
@@ -206,7 +216,7 @@ for (const tab of document.querySelectorAll('.tab')) {
 /* --------------------------------------------------------------- profile */
 
 async function loadProfile() {
-  const { ok, data } = await api('/api/admin/profile');
+  const { ok, data } = await api(`${API}/profile`);
   if (!ok || !data) return;
   const p = data.profile || {};
   $('pf-name').value = p.name || '';
@@ -259,7 +269,7 @@ $('profile-form').addEventListener('submit', async (e) => {
 
   const btn = $('pf-save');
   btn.disabled = true;
-  const { res, data } = await api('/api/admin/profile', {
+  const { res, data } = await api(`${API}/profile`, {
     method: 'PUT',
     body: JSON.stringify({ profile, services })
   });

@@ -1,27 +1,53 @@
-/** Therapist-only HTTP surface: session handling and moderation. */
+/**
+ * Therapist-only HTTP surface, mounted under the secret admin slug:
+ * `/api/<slug>/login`, `/api/<slug>/reviews`, …
+ *
+ * A wrong or missing slug answers 404 — never 401 — so the endpoint does not
+ * advertise that an admin area exists.
+ */
 import { Hono } from 'hono';
+import type { MiddlewareHandler } from 'hono';
+import { adminSlug } from '../config/admin-path';
 import { LIMITS, LOGIN_WINDOW_MS } from '../config/limits';
-import { checkPassphrase, buildCookie, clearCookie, issueSession } from '../lib/auth';
-import { clientIp, isProduction, json, jsonWithCookie, readJson } from '../lib/http';
+import { buildCookie, clearCookie, issueSession } from '../lib/auth';
+import { clientIp, httpError, isProduction, json, jsonWithCookie, readJson } from '../lib/http';
 import { hashIp } from '../lib/ip-hash';
+import { verifyPassword } from '../lib/password';
+import { hasAdminAccess, requireAdmin } from '../middleware/require-admin';
+import * as adminRepo from '../repositories/admins';
 import * as rateLimitRepo from '../repositories/rate-limit';
 import { authenticateAdmin, type AttemptCounter } from '../services/admin-auth';
-import { hasAdminAccess, requireAdmin } from '../middleware/require-admin';
 import { getEditableContent, updateContent } from '../services/profile';
 import { deleteReview, moderationQueue, moderateReview } from '../services/reviews';
 import { REVIEW_STATUSES, type AppEnv, type ReviewStatus } from '../types';
 
 export const adminRoutes = new Hono<AppEnv>();
 
+/** Reject any scope that is not the configured slug, indistinguishably from 404. */
+const requireSlug: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const slug = adminSlug(c.env);
+  if (!slug || c.req.param('scope') !== slug) {
+    throw httpError(404, 'Not found.');
+  }
+  await next();
+};
+
+/** Signing key for session cookies. ADMIN_TOKEN is the historical name. */
+function sessionSecret(env: AppEnv['Bindings']): string | null {
+  return env.SESSION_SECRET || env.ADMIN_TOKEN || null;
+}
+
+adminRoutes.use('/api/:scope/*', requireSlug);
+
 /* ------------------------------------------------------- session (no gate) */
 
-adminRoutes.post('/api/admin/login', async (c) => {
-  const body = await readJson(c, 2048);
-  const expected = c.env.ADMIN_TOKEN ?? '';
+adminRoutes.post('/api/:scope/login', async (c) => {
+  const secret = sessionSecret(c.env);
+  if (!secret) throw httpError(500, 'Server is not configured.');
 
-  // Count failures per hashed caller, not per account: there is one account, so
-  // throttling by caller is what actually slows a guessing attack.
+  const body = await readJson(c, 2048);
   const key = `login:${await hashIp(clientIp(c), c.env.IP_SALT || 'dev-only-salt')}`;
+
   const counter: AttemptCounter = {
     peek: () => rateLimitRepo.peek(c.env.DB, key, LOGIN_WINDOW_MS),
     record: async () => {
@@ -30,40 +56,38 @@ adminRoutes.post('/api/admin/login', async (c) => {
   };
 
   const result = await authenticateAdmin({
-    token: typeof body.token === 'string' ? body.token : '',
-    expected,
+    username: typeof body.username === 'string' ? body.username : '',
+    password: typeof body.password === 'string' ? body.password : '',
     maxAttempts: LIMITS.loginAttemptMax,
     counter,
-    verify: checkPassphrase
+    lookup: (username) => adminRepo.findByUsername(c.env.DB, username),
+    verify: verifyPassword
   });
 
   if (!result.ok) {
-    if (result.reason === 'unconfigured') {
-      return json(c, 500, { message: 'ADMIN_TOKEN is not configured.' });
-    }
     if (result.reason === 'rate-limited') {
-      const minutes = Math.max(1, Math.ceil(result.retryAfterMs / 60_000));
+      const minutes = Math.max(1, Math.ceil((result.retryAfterMs ?? 0) / 60_000));
       const response = json(c, 429, {
-        message: `Too many wrong passphrases. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
+        message: `Too many failed sign-ins. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`
       });
-      response.headers.set('retry-after', String(Math.ceil(result.retryAfterMs / 1000)));
+      response.headers.set('retry-after', String(Math.ceil((result.retryAfterMs ?? 0) / 1000)));
       return response;
     }
-    return json(c, 401, { message: 'Wrong passphrase.' });
+    return json(c, 401, { message: 'Wrong username or password.' });
   }
 
-  const { cookie, maxAge } = await issueSession(expected);
+  const { cookie, maxAge } = await issueSession(secret);
   return jsonWithCookie(200, { ok: true }, buildCookie(cookie, maxAge, isProduction(c)));
 });
 
-adminRoutes.post('/api/admin/logout', (c) =>
+adminRoutes.post('/api/:scope/logout', (c) =>
   jsonWithCookie(200, { ok: true }, clearCookie(isProduction(c)))
 );
 
-adminRoutes.get('/api/admin/session', async (c) =>
+adminRoutes.get('/api/:scope/session', async (c) =>
   json(c, 200, {
     authed: await hasAdminAccess(
-      c.env,
+      sessionSecret(c.env),
       c.req.header('cookie'),
       c.req.header('cf-access-jwt-assertion')
     )
@@ -72,12 +96,9 @@ adminRoutes.get('/api/admin/session', async (c) =>
 
 /* ---------------------------------------------------- everything behind auth */
 
-// Guarded routes live on their own router for readability only: the guard is
-// attached per route rather than with use('*'), which on a sub-app mounted at
-// '/' would also match unrelated paths and turn 404s into 401s.
 const guarded = new Hono<AppEnv>();
 
-guarded.get('/api/admin/reviews', requireAdmin, async (c) => {
+guarded.get('/api/:scope/reviews', requireAdmin, async (c) => {
   const status = (c.req.query('status') ?? 'pending') as ReviewStatus;
   if (!REVIEW_STATUSES.includes(status)) {
     return json(c, 400, { message: 'Unknown status.' });
@@ -87,7 +108,7 @@ guarded.get('/api/admin/reviews', requireAdmin, async (c) => {
   return json(c, 200, { items, stats: counts });
 });
 
-guarded.patch('/api/admin/reviews/:id', requireAdmin, async (c) => {
+guarded.patch('/api/:scope/reviews/:id', requireAdmin, async (c) => {
   const body = await readJson(c, 4096);
 
   const changes: { status?: ReviewStatus; reply?: string | null } = {};
@@ -108,17 +129,17 @@ guarded.patch('/api/admin/reviews/:id', requireAdmin, async (c) => {
   return json(c, 200, { ok: true, review: result.value });
 });
 
-guarded.delete('/api/admin/reviews/:id', requireAdmin, async (c) => {
+guarded.delete('/api/:scope/reviews/:id', requireAdmin, async (c) => {
   const removed = await deleteReview(c.env.DB, c.req.param('id'));
   if (!removed) return json(c, 404, { message: 'Review not found.' });
   return json(c, 200, { ok: true });
 });
 
-guarded.get('/api/admin/profile', requireAdmin, async (c) =>
+guarded.get('/api/:scope/profile', requireAdmin, async (c) =>
   json(c, 200, await getEditableContent(c.env.DB))
 );
 
-guarded.put('/api/admin/profile', requireAdmin, async (c) => {
+guarded.put('/api/:scope/profile', requireAdmin, async (c) => {
   const body = await readJson(c, 32 * 1024);
 
   const result = await updateContent(c.env.DB, body);
