@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf8f4">
+<meta name="robots" content="noindex, nofollow">
+<title>Leave feedback — anonymous</title>
+<meta name="description" content="Tell others how your massage session went. No account needed, no name required.">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💆</text></svg>">
+</head>
+<body>
+<div class="page" style="padding-bottom:32px;padding-top:32px">
+  <div class="wrap">
+
+    <main id="form-view">
+      <h1 style="margin-top:6px">How was your session?</h1>
+      <p class="small muted" style="margin:8px 0 22px">
+        Anonymous — no account, no email, no phone number. Your feedback appears on the page
+        once the therapist has read it.
+      </p>
+
+      <div class="alert" id="form-alert" role="alert" aria-live="polite"></div>
+
+      <form id="fb-form" novalidate>
+        <!-- Rating -->
+        <fieldset class="rate-field">
+          <legend>Your rating <span class="muted" style="font-weight:400">(required)</span></legend>
+          <div class="star-picker" id="star-picker" role="radiogroup" aria-label="Star rating 1 to 5">
+            <label class="star-opt" title="1 star">
+              <input type="radio" name="rating" value="1" aria-label="1 star">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg>
+            </label>
+            <label class="star-opt" title="2 stars">
+              <input type="radio" name="rating" value="2" aria-label="2 stars">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg>
+            </label>
+            <label class="star-opt" title="3 stars">
+              <input type="radio" name="rating" value="3" aria-label="3 stars">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg>
+            </label>
+            <label class="star-opt" title="4 stars">
+              <input type="radio" name="rating" value="4" aria-label="4 stars">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg>
+            </label>
+            <label class="star-opt" title="5 stars">
+              <input type="radio" name="rating" value="5" aria-label="5 stars">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.9 5.9 6.5.95-4.7 4.6 1.1 6.5L12 17.5l-5.8 3.05 1.1-6.5-4.7-4.6 6.5-.95z"/></svg>
+            </label>
+          </div>
+          <p class="rate-hint" id="rate-hint"></p>
+          <p class="err" id="e-rating"></p>
+        </fieldset>
+
+        <!-- Service -->
+        <div class="field">
+          <label for="service">Which session did you have? <span class="muted" style="font-weight:400">(optional)</span></label>
+          <div class="select-wrap">
+            <select id="service" name="service_id">
+              <option value="">Prefer not to say</option>
+            </select>
+          </div>
+          <p class="err" id="e-service_id"></p>
+        </div>
+
+        <!-- Message -->
+        <div class="field">
+          <label for="message">Your feedback</label>
+          <textarea id="message" name="message" placeholder="What was good, what could be better? Specifics help other clients." maxlength="1200" required></textarea>
+          <div class="counter-row">
+            <span>Minimum 10 characters</span>
+            <span id="counter">0 / 1000</span>
+          </div>
+          <p class="err" id="e-message"></p>
+        </div>
+
+        <!-- Nickname -->
+        <div class="field">
+          <label for="nickname">Name to display <span class="muted" style="font-weight:400">(optional)</span></label>
+          <input type="text" id="nickname" name="nickname" placeholder="Anonymous" maxlength="30" autocomplete="off">
+          <p class="help">Leave empty and it will show as “Anonymous”.</p>
+          <p class="err" id="e-nickname"></p>
+        </div>
+
+        <!-- Honeypot: hidden from people, tempting to bots -->
+        <div class="hp" aria-hidden="true">
+          <label for="website">Website</label>
+          <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
+
+        <!-- Consent -->
+        <div class="field">
+          <label class="consent" for="consent" style="font-weight:400">
+            <input type="checkbox" id="consent" name="consent">
+            <span>
+              I understand this feedback will be published publicly and anonymously, and I agree to the
+              <a href="/privacy">privacy notice</a>. No personal details about other people.
+            </span>
+          </label>
+          <p class="err" id="e-consent"></p>
+        </div>
+
+        <div id="turnstile-slot" style="margin-bottom:16px"></div>
+
+        <button class="btn btn-primary btn-block" type="submit" id="submit-btn">Publish my feedback</button>
+        <p class="tiny muted" style="text-align:center;margin:12px 0 0" id="rate-note"></p>
+      </form>
+    </main>
+
+    <!-- Success -->
+    <main id="done-view" hidden>
+      <div class="done">
+        <div class="tick">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <h1>Thank you</h1>
+        <p class="small muted" style="margin:10px 0 24px">
+          Your feedback has been sent. It will appear on the page once the therapist has read it —
+          usually within a day.
+        </p>
+        <p class="tiny muted" style="margin:0">You can close this page now.</p>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script type="module" src="/feedback.js"></script>
+</body>
+</html>
