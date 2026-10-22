@@ -1,249 +1,325 @@
 # Massage therapist feedback site
 
-A mobile-first public page for an independent massage therapist: profile, services and prices,
-anonymous client feedback, and a moderation queue behind a login.
+A mobile-first site for an independent massage therapist: a public page with services,
+prices and client feedback, a standalone anonymous feedback form, and a moderation queue
+for the therapist.
 
-Runs on **Cloudflare Workers + Hono + TypeScript**, with **D1** (SQLite) for storage.
-No photo uploads, no PWA — both were cut from scope deliberately.
+Built on **Cloudflare Workers** with **Hono**, **TypeScript** and **D1**.
+
+- Live: <https://massage.wafiyabdullah39.workers.dev>
+- Feedback form (unlisted): `/feedback`
+- Admin: `/admin`
+
+---
+
+## Contents
+
+- [Stack](#stack)
+- [Architecture](#architecture)
+- [Getting started](#getting-started)
+- [Scripts](#scripts)
+- [Configuration](#configuration)
+- [API](#api)
+- [Database](#database)
+- [Deployment](#deployment)
+- [Testing](#testing)
+- [Conventions](#conventions)
+- [Security](#security)
+- [Known limitations](#known-limitations)
 
 ---
 
 ## Stack
 
-| Layer | Choice |
-|---|---|
-| Runtime | Cloudflare Workers (V8 isolates) |
-| Framework | Hono 4 |
-| Language | TypeScript (strict) |
-| Database | Cloudflare D1 (SQLite) with SQL migrations |
-| Frontend | Vanilla HTML/CSS/ES modules — no framework, no build step |
-| Anti-spam | Turnstile (optional) + honeypot + time-to-fill + per-IP rate limit |
-| Admin auth | HMAC-signed cookie, with Cloudflare Access in front in production |
-| Tests | Vitest (22 unit tests) + a scripted browser smoke test |
+| Layer         | Choice                                           | Why                                                    |
+| ------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| Runtime       | Cloudflare Workers                               | Free tier, edge latency, no servers to maintain        |
+| Framework     | Hono 4                                           | Small, typed, runs unchanged in tests                  |
+| Language      | TypeScript (strict)                              | `noUncheckedIndexedAccess` on                          |
+| Database      | Cloudflare D1 (SQLite)                           | SQL, migrations, same engine locally and in production |
+| Frontend      | Vanilla HTML/CSS/ES modules                      | Four pages; a framework would be overhead              |
+| Anti-spam     | Turnstile + honeypot + time-to-fill + rate limit | Layered, no single point of failure                    |
+| Validation    | Plain functions                                  | Four shapes do not justify Zod's bundle cost           |
+| Tests         | Vitest                                           | 22 unit tests over the pure layers                     |
+| Lint / format | ESLint 9 (typed) + Prettier                      | `npm run check` runs everything                        |
 
-The Worker bundles to **~26 KB gzipped**, including Hono.
+Worker bundle: **~26 KB gzipped**, including Hono. Startup time ~7 ms.
 
 ---
 
-## Local development
+## Architecture
 
-Requires Node 20+ and npm. **No Cloudflare account is needed** — Wrangler simulates
-D1, the assets binding and the Worker on your machine.
+Layers talk downward only. A route never writes SQL; a repository never formats a response.
+
+```
+src/
+├─ index.ts                    Worker entry: app assembly, assets, errors, cron
+├─ config/limits.ts            Every tunable number in one place
+├─ domain/validation.ts        Pure input rules (no I/O, no framework)
+├─ routes/
+│  ├─ public.ts                /api/config, /api/profile, /api/reviews
+│  └─ admin.ts                 /api/admin/*  (session + moderation)
+├─ services/
+│  ├─ reviews.ts               Submit pipeline, moderation workflow
+│  └─ profile.ts               Profile + catalogue
+├─ repositories/
+│  ├─ reviews.ts               All review SQL
+│  ├─ services.ts              All service SQL
+│  ├─ profile.ts               All profile SQL
+│  └─ rate-limit.ts            Atomic counters, purge
+├─ middleware/
+│  ├─ security-headers.ts      nosniff, DENY framing, referrer, permissions
+│  └─ require-admin.ts         Access header or signed cookie
+├─ lib/
+│  ├─ auth.ts                  HMAC session cookies, constant-time compare
+│  ├─ http.ts                  json helpers, body parsing, client IP
+│  ├─ turnstile.ts             Challenge verification
+│  ├─ ip-hash.ts               Salted visitor hash
+│  └─ id.ts                    Time-prefixed record ids
+└─ types/index.ts              Env bindings, DB rows, API DTOs
+```
+
+**Request flow** for `POST /api/reviews`:
+
+```
+route (public.ts)      parse body, verify Turnstile, hash IP
+   ↓
+service (reviews.ts)   validate → rate limit → insert as pending
+   ↓
+repository             INSERT INTO reviews …
+```
+
+Each layer is independently testable: `domain/` and `lib/` are pure and covered by unit
+tests; `routes/` is a thin adapter; `repositories/` holds every SQL string.
+
+**Static assets** live in `public/` and are served by the `ASSETS` binding. The Worker only
+intercepts `/api/*` and the clean URLs (`/feedback`, `/admin`, `/privacy`).
+
+---
+
+## Getting started
+
+Requires Node 20+ and npm. **No Cloudflare account needed** — Wrangler simulates D1, the
+assets binding and the Worker locally.
 
 ```bash
 git clone https://github.com/Wapiy-y/p-massage.git
 cd p-massage
 npm install
 
-cp .dev.vars.example .dev.vars      # then edit ADMIN_TOKEN and IP_SALT
-
-npm run db:migrate:local            # create tables
-npm run db:seed:local               # demo profile, 5 services, 8 reviews + 2 pending
-npm run dev                         # http://localhost:8787
+cp .dev.vars.example .dev.vars     # set ADMIN_TOKEN and IP_SALT
+npm run db:migrate:local
+npm run db:seed:local              # demo profile, 5 services, 8 reviews, 2 pending
+npm run dev                        # http://localhost:8787
 ```
 
-| Script | What it does |
-|---|---|
-| `npm run dev` | Wrangler dev server with local D1 + assets |
-| `npm test` | Vitest unit tests |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run db:migrate:local` | Apply `migrations/0001_init.sql` locally |
-| `npm run db:seed:local` | Apply `migrations/0002_seed.sql` locally |
-| `npm run db:migrate:remote` | Apply the schema to your real D1 database |
-| `npm run db:export` | Dump the remote database to `backup.sql` |
-| `npm run deploy` | Deploy to Cloudflare |
-
-Local data lives in `.wrangler/state/` (gitignored). Delete that directory to start over.
-
-### Local secrets
-
-`.dev.vars` (gitignored) supplies secrets in development:
-
-```
-ADMIN_TOKEN=change-me
-IP_SALT=change-me-to-32-random-bytes
-TURNSTILE_SECRET=
-```
-
-Leaving `TURNSTILE_SECRET` empty disables Turnstile locally. The Worker only fails
-closed on a missing secret when the request is *not* for localhost.
+Local data is stored in `.wrangler/state/`. Delete that directory to start clean. Note the
+local database file is keyed by the `database_id` in `wrangler.toml`, so changing that id
+starts an empty local database — re-run the migrations if that happens.
 
 ---
 
-## Deploying
+## Scripts
 
-```bash
-# 1. Create the database and copy its id into wrangler.toml
-npx wrangler d1 create massage-feedback
-#    → [[d1_databases]] database_id = "..."
+| Script                                 | Purpose                                    |
+| -------------------------------------- | ------------------------------------------ |
+| `npm run dev`                          | Wrangler dev server (Worker + D1 + assets) |
+| `npm run deploy`                       | Deploy to Cloudflare                       |
+| `npm test`                             | Vitest unit tests                          |
+| `npm run typecheck`                    | `tsc --noEmit`                             |
+| `npm run lint` / `lint:fix`            | ESLint over the whole repo                 |
+| `npm run format` / `format:check`      | Prettier                                   |
+| `npm run check`                        | typecheck + lint + format:check + tests    |
+| `npm run db:migrate:local` / `:remote` | Apply schema                               |
+| `npm run db:seed:local`                | Load demo content                          |
+| `npm run db:export`                    | Dump the remote database                   |
 
-# 2. Apply the schema, then seed only if you want demo content
-npm run db:migrate:remote
-# npm run db:seed:local -- --remote    (optional demo data)
-
-# 3. Secrets
-npx wrangler secret put ADMIN_TOKEN    # long random string
-npx wrangler secret put IP_SALT        # openssl rand -hex 32
-npx wrangler secret put TURNSTILE_SECRET
-
-# 4. Deploy
-npm run deploy
-```
-
-`wrangler.toml` already carries the cron trigger for the 30-day IP-hash purge — the reason
-this became a Worker rather than staying on Pages Functions, which cannot have cron triggers.
+CI, if you add it back, should be `npm run check`.
 
 ---
 
-## Pages
+## Configuration
 
-| Path | What it is | Discoverable? |
-|---|---|---|
-| `/` | Single public page: profile, rating summary, services, hours, location, feedback feed with star filter | yes |
-| `/feedback` | Standalone anonymous form — stars, optional session type, message, optional name | **no — URL only** |
-| `/privacy` | Short privacy notice, linked from the form's consent line | yes |
-| `/admin` | Moderation queue, replies, profile & services editor | no — passphrase / Access |
+**Variables** (`wrangler.toml` — public, committed):
 
-### The form is unlisted by design
+| Name                 | Default | Meaning                                      |
+| -------------------- | ------- | -------------------------------------------- |
+| `RATE_LIMIT_MAX`     | `3`     | Reviews per connection per hour              |
+| `TURNSTILE_SITE_KEY` | —       | Public widget key; empty disables the widget |
 
-`/feedback` is standalone: no site header, no navigation, no link back to the homepage, and
-`noindex`. Nothing on `/` links to it, so a visitor can only reach it by being given the URL.
+**Secrets** (`wrangler secret put`, never committed):
 
-That means **the therapist distributes the link** — WhatsApp after a session, a QR code on a
-card, or the appointment reminder. The trade-off: there is no in-page funnel from "reading
-reviews" to "leaving one". Add a link on `/` and drop `noindex` if that ever matters more.
+| Name               | Meaning                                                            |
+| ------------------ | ------------------------------------------------------------------ |
+| `ADMIN_TOKEN`      | Admin passphrase, also the session signing key                     |
+| `IP_SALT`          | Salt for visitor hashing — rotate with care, it resets rate limits |
+| `TURNSTILE_SECRET` | Server-side Turnstile key                                          |
 
----
-
-## Where it runs
-
-- Worker: `massage` → <https://massage.wafiyabdullah39.workers.dev>
-- D1: `massage-feedback` (`ef09ab96-ad99-48ab-abdb-4b28509c0119`, APAC)
-- Turnstile widget: `massage`, hostname-scoped to the Worker above
-
-The Worker is named `massage` while the database is `massage-feedback` — they were
-named at different times. `wrangler.toml` must keep `name = "massage"` in step with the
-dashboard, otherwise a Git build and a CLI deploy target two different Workers.
+`TURNSTILE_SECRET` and `IP_SALT` missing on a non-localhost host is a **hard failure**, not
+a silent bypass: the form refuses submissions rather than running unprotected.
 
 ---
 
 ## API
 
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| GET | `/api/config` | public | Limits + optional Turnstile site key |
-| GET | `/api/profile` | public | Profile + active services |
-| GET | `/api/reviews?cursor=&rating=&service=&limit=` | public | Published reviews, keyset paginated |
-| GET | `/api/reviews/summary` | public | Average, count, star distribution |
-| POST | `/api/reviews` | Turnstile if configured | Create review as `pending` |
-| POST | `/api/admin/login` · `/logout` | — | Signed-cookie session |
-| GET | `/api/admin/session` | — | Is the current cookie valid? |
-| GET | `/api/admin/reviews?status=` | admin | Moderation queue + counts |
-| PATCH | `/api/admin/reviews/:id` | admin | `{status}` and/or `{reply}` |
-| DELETE | `/api/admin/reviews/:id` | admin | Permanent delete |
-| GET · PUT | `/api/admin/profile` | admin | Read/update profile and services |
-| POST | `/api/admin/purge` | admin | Run the IP-hash purge now |
+| Method    | Path                                           | Auth      | Purpose                             |
+| --------- | ---------------------------------------------- | --------- | ----------------------------------- |
+| GET       | `/api/config`                                  | public    | Limits + Turnstile site key         |
+| GET       | `/api/profile`                                 | public    | Profile + active services           |
+| GET       | `/api/reviews?cursor=&rating=&service=&limit=` | public    | Published reviews, keyset paginated |
+| GET       | `/api/reviews/summary`                         | public    | Average, count, distribution        |
+| POST      | `/api/reviews`                                 | Turnstile | Create review as `pending`          |
+| POST      | `/api/admin/login`                             | —         | Passphrase → signed cookie          |
+| POST      | `/api/admin/logout`                            | —         | Clear cookie                        |
+| GET       | `/api/admin/session`                           | —         | Is the caller authorised?           |
+| GET       | `/api/admin/reviews?status=`                   | admin     | Queue + counts                      |
+| PATCH     | `/api/admin/reviews/:id`                       | admin     | `{ status }` and/or `{ reply }`     |
+| DELETE    | `/api/admin/reviews/:id`                       | admin     | Permanent delete                    |
+| GET · PUT | `/api/admin/profile`                           | admin     | Read/update profile + services      |
 
-### Submit pipeline (`POST /api/reviews`)
+### Submit pipeline
 
 1. **Turnstile** — verified server-side when a secret is configured
-2. **Honeypot** — a hidden `website` field must be empty
-3. **Time-to-fill** — anything under 1.2 s is rejected
-4. **Validation** — rating 1–5, message 10–1000 chars, known service id, consent ticked
-5. **Rate limit** — 3/hour per salted IP hash, one atomic `UPSERT … RETURNING`
-6. **Insert** with status `pending`; nothing is public until a human approves it
+2. **Validation** — rating 1–5, message 10–1000 chars, known service id, consent ticked,
+   honeypot empty, at least 1.2 s spent on the form
+3. **Rate limit** — atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING`, 3 per hour
+4. **Insert** as `pending` — nothing is public until a human approves it
 
-Body cap 16 KB, `application/json` only. The raw IP is never stored — only
-`SHA-256(salt + ip)`, purged after 30 days by the cron trigger.
+Bodies are capped at 16 KB and must be JSON objects. Validation failures cost no rate-limit
+slot, so fixing a typo does not lock a real visitor out.
+
+Pagination is keyset on `(created_at, id)` with a `<timestamp>.<id>` cursor — a dot
+deliberately, because ids contain underscores and splitting on `_` would corrupt the cursor.
 
 ---
 
-## Layout
+## Database
 
-```
-p-massage/
-├─ src/
-│  ├─ index.ts        # Hono app, routes, error handling, scheduled handler
-│  ├─ db.ts           # every D1 query (async)
-│  ├─ validation.ts   # field rules, typed
-│  ├─ auth.ts         # HMAC cookie sessions, constant-time compare
-│  ├─ turnstile.ts    # challenge verification
-│  └─ types.ts        # Env bindings + row shapes
-├─ public/            # static assets: index, feedback, admin, privacy, 404, styles, JS
-├─ migrations/
-│  ├─ 0001_init.sql
-│  └─ 0002_seed.sql
-├─ tests/             # vitest: validation + auth
-├─ wrangler.toml
-└─ tsconfig.json
+Two migrations, applied in order:
+
+| File            | Purpose                                                   |
+| --------------- | --------------------------------------------------------- |
+| `0001_init.sql` | `reviews`, `profile`, `services`, `rate_limits` + indexes |
+| `0002_seed.sql` | Demo content for local development                        |
+
+Migrations are idempotent and tracked in `d1_migrations`, so
+`npm run db:migrate:remote` is safe to re-run. After changing the schema:
+
+```bash
+npx wrangler d1 migrations apply massage-feedback --remote
 ```
 
----
-
-## Security notes
-
-- **Sessions are stateless.** Workers have no shared memory between isolates, so the cookie is
-  `v1.<expiry>.<HMAC-SHA256>` and self-verifying. Changing the expiry invalidates it — covered
-  by a test.
-- **Admin routes check twice.** `Cf-Access-Jwt-Assertion` (Cloudflare Access) *or* a valid
-  signed cookie. Access should still be the outer gate in production.
-- **Rate limiting is atomic**, one `INSERT … ON CONFLICT DO UPDATE … RETURNING`, so two
-  concurrent requests cannot both slip through a read-then-write window.
-- **Timing-safe comparisons** for the passphrase and the session signature.
-- **All user text is rendered with `textContent`**; nothing goes through `innerHTML`.
-- **Security headers** (`nosniff`, `DENY` framing, referrer policy, permissions policy) are
-  added to every response.
+None of the automated paths run migrations — this is manual by design.
 
 ---
 
-## Automatic deploys (GitHub Actions)
+## Deployment
 
-Two workflows, one file: `.github/workflows/ci-cd.yml`.
+Production deploys run in **Cloudflare Workers Builds** (Worker `massage` → Settings →
+Build), connected to this repository:
 
-| Trigger | What runs |
-|---|---|
-| Pull request | Install, typecheck, tests, `wrangler deploy --dry-run` — **no credentials**, so PRs from forks are safe |
-| Push to `main` (a merged PR) | The same checks, then `wrangler d1 migrations apply --remote` and `wrangler deploy`, then a smoke test against the live URLs |
+| Setting        | Value                     |
+| -------------- | ------------------------- |
+| Build command  | `npm ci && npm run check` |
+| Deploy command | `npx wrangler deploy`     |
+| Branch         | `main`                    |
+| Root directory | _(repository root)_       |
 
-Migrations run before every deploy and are idempotent — D1 records what it has applied in
-`d1_migrations`, so it only ever runs new files. Schema therefore lands ahead of the code
-that needs it.
+`npm run check` in the build command means a failing typecheck, lint error or failing test
+blocks the deploy.
 
-### One-time setup
+To deploy by hand instead:
 
-Repository → **Settings → Secrets and variables → Actions → New repository secret**:
+```bash
+npx wrangler login
+npx wrangler d1 migrations apply massage-feedback --remote
+npx wrangler secret put ADMIN_TOKEN
+npx wrangler deploy
+```
 
-| Secret | Value |
-|---|---|
-| `CLOUDFLARE_API_TOKEN` | API token with **Account → Workers Scripts → Edit** and **Account → D1 → Edit** |
-| `CLOUDFLARE_ACCOUNT_ID` | `9af6679d3d31d759e1c1a24e2e475bf7` |
+**Infrastructure in use**
 
-Create the token at <https://dash.cloudflare.com/profile/api-tokens> → *Create Token* →
-*Custom token*. Scope it to the one account; do not use a Global API Key.
+| Resource  | Identifier                                                  |
+| --------- | ----------------------------------------------------------- |
+| Worker    | `massage` (APAC account `9af6679d3d31d759e1c1a24e2e475bf7`) |
+| D1        | `massage-feedback` / `ef09ab96-ad99-48ab-abdb-4b28509c0119` |
+| Turnstile | widget `massage`, hostname-scoped to the Worker URL         |
+| Cron      | `17 3 * * *` — purges IP hashes older than 30 days          |
 
-Until both secrets exist the deploy job fails early with an explicit message rather than a
-cryptic Wrangler error. Worker **secrets** (`ADMIN_TOKEN`, `IP_SALT`, `TURNSTILE_SECRET`) are
-stored in Cloudflare and survive deploys — they are not part of this pipeline.
-
-The `production` environment on the deploy job is a hook for later: add required reviewers
-there to gate deploys without editing the workflow.
-
----
-
-## Known gaps
-
-- Reviews cannot be edited or withdrawn by their author (secret-link flow is a v2 idea)
-- No email/Telegram notification when a review arrives — check `/admin`
-- No BM/EN toggle; copy is English only
-- Star filter only; no per-service filter in the feed
-- No sitemap or OG share image
-- No analytics, by design
+The Worker is named `massage` while the database is `massage-feedback`; they were created at
+different times. `wrangler.toml` must keep `name = "massage"` in step with the dashboard, or
+a Git build and a CLI deploy target two different Workers.
 
 ---
 
-## History
+## Testing
 
-This started as a dependency-free Node + `node:sqlite` app (still in the git history). The
-backend was then ported to Workers + Hono + TypeScript so it can actually be deployed, and
-because Workers, unlike Pages Functions, support the cron trigger the privacy promise needs.
-The frontend did not change: same HTML, CSS and ES modules.
+```bash
+npm test        # 22 unit tests
+npm run check   # everything
+```
+
+Covered: review and profile validation, the honeypot, the time-to-fill floor, service
+id derivation, session signing, tampered-expiry rejection, constant-time comparison, cookie
+parsing and the `Secure` flag.
+
+Not covered by unit tests: the route and repository layers, which need a D1 instance. They
+are exercised by running `npm run dev` and clicking through — see the manual checklist below.
+
+**Manual checklist before release**
+
+- [ ] `/` renders profile, services and published reviews
+- [ ] Star filter and "Load more" both work
+- [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
+- [ ] `/admin` rejects a wrong passphrase, accepts the right one, publishes the review
+- [ ] Published review appears on `/` without a reload
+- [ ] Unknown path returns the 404 page
+
+---
+
+## Conventions
+
+Guidelines the codebase follows, so changes stay cheap:
+
+- **Layers depend downward only.** Routes → services → repositories. No SQL in a route, no
+  HTTP types in a service, no business rules in a repository.
+- **Pure logic has no imports from `lib/` or `repositories/`.** That is what makes `domain/`
+  unit-testable without a runtime.
+- **Numbers live in `config/limits.ts`.** No magic constants scattered through handlers.
+- **DTOs are separate from rows.** `PublicReview` is a deliberate subset of `ReviewRow`; a
+  schema change cannot leak a column by accident.
+- **Comments explain why, not what.** Ordering constraints (validate before rate limiting),
+  the cursor separator, and the reason for the HMAC cookie are all documented at the point
+  they matter.
+- **A deprecation is deleted, not commented out.** The original Node implementation lives in
+  git history only.
+- **`npm run check` must pass** before a commit — it is the same gate the Cloudflare build
+  runs.
+
+---
+
+## Security
+
+- **Stateless sessions.** `v1.<expiry>.<HMAC-SHA256>` in an `HttpOnly`, `SameSite=Lax`
+  cookie, `Secure` off localhost only. Extending the expiry invalidates the signature.
+- **Two gates on admin routes.** Cloudflare Access (when configured) or a valid cookie;
+  the guard is attached per route so it cannot swallow unrelated paths.
+- **Raw IPs are never stored.** Only `SHA-256(salt + ip)`, purged after 30 days by cron.
+- **Atomic rate limiting** closes the read-then-write race.
+- **No `innerHTML` on user content.** Every review is rendered with `textContent`.
+- **Fail closed.** A missing Turnstile secret or IP salt in production refuses submissions
+  rather than quietly accepting them.
+- **Hardening headers** on every response: `nosniff`, `DENY` framing, referrer policy,
+  restrictive permissions policy.
+
+---
+
+## Known limitations
+
+- Reviews cannot be edited or withdrawn by their author.
+- No notification when a review arrives — check `/admin`.
+- English only; no BM toggle.
+- The feed filters by star rating only, not by service.
+- No sitemap or OG share image.
+- No analytics, deliberately.
+- `/admin` uses a passphrase unless Cloudflare Access is configured in front of it.
