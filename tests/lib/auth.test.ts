@@ -6,7 +6,7 @@ import {
   parseCookies,
   timingSafeEqual,
   verifySession
-} from '../src/auth';
+} from '../../src/lib/auth';
 
 const SECRET = 'test-secret-value';
 

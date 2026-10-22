@@ -1,11 +1,9 @@
 /**
- * Stateless admin session: an HMAC-signed cookie.
+ * Stateless admin sessions: an HMAC-signed cookie.
  *
- * Workers have no shared memory between isolates, so the old in-memory session
- * Map cannot work — the cookie has to be self-verifying instead.
- *
- * In production Cloudflare Access sits in front of /admin and /api/admin/*,
- * which makes this a second line of defence rather than the only one.
+ * Workers share no memory between isolates, so the cookie has to verify itself.
+ * In production Cloudflare Access sits in front of /admin, making this a second
+ * line of defence rather than the only one.
  */
 
 const COOKIE_NAME = 'sid';
@@ -13,7 +11,7 @@ const VERSION = 'v1';
 const TTL_MS = 12 * 60 * 60 * 1000;
 
 function toHex(buffer: ArrayBuffer): string {
-  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(buffer), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 async function hmac(secret: string, payload: string): Promise<string> {
@@ -28,7 +26,7 @@ async function hmac(secret: string, payload: string): Promise<string> {
   return toHex(signature);
 }
 
-/** Length-independent comparison, so a wrong cookie leaks no timing signal. */
+/** Constant-time comparison: a wrong value must not leak its similarity. */
 export function timingSafeEqual(a: string, b: string): boolean {
   const length = Math.max(a.length, b.length);
   let diff = a.length ^ b.length;
@@ -54,8 +52,10 @@ export async function verifySession(
   now = Date.now()
 ): Promise<boolean> {
   if (!value) return false;
+
   const parts = value.split('.');
   if (parts.length !== 3) return false;
+
   const [version, expiresRaw, signature] = parts;
   if (version !== VERSION || !expiresRaw || !signature) return false;
 
@@ -66,14 +66,27 @@ export async function verifySession(
   return timingSafeEqual(expected, signature);
 }
 
+/** Verify the passphrase without leaking its length through timing. */
+export async function checkPassphrase(input: string, expected: string): Promise<boolean> {
+  const [a, b] = await Promise.all([hmac('compare', input), hmac('compare', expected)]);
+  return timingSafeEqual(a, b);
+}
+
 export function parseCookies(header: string | undefined): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (!header) return out;
+  const cookies: Record<string, string> = {};
+  if (!header) return cookies;
+
   for (const part of header.split(';')) {
     const index = part.indexOf('=');
-    if (index > 0) out[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+    if (index > 0) {
+      cookies[part.slice(0, index).trim()] = decodeURIComponent(part.slice(index + 1).trim());
+    }
   }
-  return out;
+  return cookies;
+}
+
+export function readSessionCookie(header: string | undefined): string | undefined {
+  return parseCookies(header)[COOKIE_NAME];
 }
 
 export function buildCookie(value: string, maxAge: number, secure: boolean): string {
@@ -92,10 +105,4 @@ export function clearCookie(secure: boolean): string {
   const parts = [`${COOKIE_NAME}=`, 'HttpOnly', 'SameSite=Lax', 'Path=/', 'Max-Age=0'];
   if (secure) parts.push('Secure');
   return parts.join('; ');
-}
-
-/** Verify the passphrase without leaking its length through timing. */
-export async function checkPassphrase(input: string, expected: string): Promise<boolean> {
-  const [a, b] = await Promise.all([hmac('compare', input), hmac('compare', expected)]);
-  return timingSafeEqual(a, b);
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LIMITS, validateProfile, validateReview, validateServices } from '../src/validation';
+import { LIMITS } from '../../src/config/limits';
+import { validateProfile, validateReview, validateServices } from '../../src/domain/validation';
 
 const base = {
   rating: 5,
@@ -40,7 +41,10 @@ describe('validateReview', () => {
   });
 
   it('rejects an unknown service id', () => {
-    const result = validateReview({ ...base, service_id: 'made-up' }, { serviceIds: ['traditional'] });
+    const result = validateReview(
+      { ...base, service_id: 'made-up' },
+      { serviceIds: ['traditional'] }
+    );
     expect(result.ok).toBe(false);
   });
 
@@ -79,7 +83,10 @@ describe('validateProfile', () => {
     const result = validateProfile({
       name: 'A',
       whatsapp: '60123456789',
-      hours: [{ label: 'Mon', value: '10-6' }, { label: '', value: '' }]
+      hours: [
+        { label: 'Mon', value: '10-6' },
+        { label: '', value: '' }
+      ]
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.hours).toHaveLength(1);
