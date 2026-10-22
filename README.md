@@ -272,6 +272,7 @@ are exercised by running `npm run dev` and clicking through — see the manual c
 - [ ] Star filter and "Load more" both work
 - [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
 - [ ] `/admin` rejects a wrong passphrase, accepts the right one, publishes the review
+- [ ] Eleven wrong passphrases in a row return `429` with a `Retry-After` header
 - [ ] Published review appears on `/` without a reload
 - [ ] Unknown path returns the 404 page
 
@@ -304,6 +305,10 @@ Guidelines the codebase follows, so changes stay cheap:
   cookie, `Secure` off localhost only. Extending the expiry invalidates the signature.
 - **Two gates on admin routes.** Cloudflare Access (when configured) or a valid cookie;
   the guard is attached per route so it cannot swallow unrelated paths.
+- **Login attempts are throttled.** Ten wrong passphrases per 15 minutes per hashed caller,
+  then `429` with `Retry-After`. Only _failures_ are counted, so a therapist signing in
+  repeatedly is never locked out. The decision logic lives in `services/admin-auth.ts` with
+  injected dependencies, so it is unit-tested without a database.
 - **Raw IPs are never stored.** Only `SHA-256(salt + ip)`, purged after 30 days by cron.
 - **Atomic rate limiting** closes the read-then-write race.
 - **No `innerHTML` on user content.** Every review is rendered with `textContent`.
@@ -322,4 +327,7 @@ Guidelines the codebase follows, so changes stay cheap:
 - The feed filters by star rating only, not by service.
 - No sitemap or OG share image.
 - No analytics, deliberately.
-- `/admin` uses a passphrase unless Cloudflare Access is configured in front of it.
+- `/admin` is protected by a passphrase alone. Cloudflare Access is **not** configured:
+  self-hosted Access apps need a hostname on a zone you own, and the Worker lives on
+  `*.workers.dev`. Adding a custom domain enables it; until then the passphrase plus
+  attempt throttling is the whole gate.

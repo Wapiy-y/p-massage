@@ -19,8 +19,9 @@
     <main id="gate" hidden>
       <h1 style="margin-top:6px">Therapist login</h1>
       <p class="small muted" style="margin:8px 0 22px">
-        In production this page sits behind Cloudflare Access (email one-time PIN). Locally, use
-        the ADMIN_TOKEN from .dev.vars.
+        Therapist only. There is no account system &mdash; a single passphrase is the gate.
+        Locally it is <code>ADMIN_TOKEN</code> from <code>.dev.vars</code>; in production it is a
+        Cloudflare secret. Ten wrong attempts pause sign-in for fifteen minutes.
       </p>
       <div class="alert" id="gate-alert" role="alert"></div>
       <form id="gate-form" class="card">

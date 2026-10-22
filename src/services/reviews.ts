@@ -2,7 +2,7 @@
  * Review business rules. Knows about validation order, rate limiting and the
  * moderation workflow; knows nothing about HTTP or SQL specifics.
  */
-import { LIMITS } from '../config/limits';
+import { LIMITS, RATE_LIMIT_WINDOW_MS } from '../config/limits';
 import { validateReview } from '../domain/validation';
 import { newId } from '../lib/id';
 import * as reviewRepo from '../repositories/reviews';
@@ -60,7 +60,12 @@ export async function submitReview(
     };
   }
 
-  const limit = await rateLimitRepo.consume(db, command.ipHash, command.rateLimitMax);
+  const limit = await rateLimitRepo.consume(
+    db,
+    `review:${command.ipHash}`,
+    command.rateLimitMax,
+    RATE_LIMIT_WINDOW_MS
+  );
   if (!limit.ok) {
     const minutes = Math.ceil(limit.retryAfterMs / 60_000);
     const plural = minutes === 1 ? '' : 's';
