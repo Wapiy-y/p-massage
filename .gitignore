@@ -6,3 +6,4 @@ data/
 *.log
 .dry-run/
 dist/
+.eslintcache

@@ -1,4 +1,9 @@
 # Copy to .dev.vars (gitignored) for local development.
-ADMIN_TOKEN=change-me
+# Admin area path segment — the page lives at /<ADMIN_SLUG> and its API at /api/<ADMIN_SLUG>.
+ADMIN_SLUG=admin-local-dev
+# Signs session cookies. Any long random string.
+SESSION_SECRET=change-me-to-32-random-bytes
+# Salt for hashing visitor IPs.
 IP_SALT=change-me-to-32-random-bytes
+# Turnstile: leave empty to disable locally.
 TURNSTILE_SECRET=

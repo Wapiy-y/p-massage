@@ -8,7 +8,7 @@ Built on **Cloudflare Workers** with **Hono**, **TypeScript** and **D1**.
 
 - Live: <https://massage.wafiyabdullah39.workers.dev>
 - Feedback form (unlisted): `/feedback`
-- Admin: `/admin`
+- Admin: `/<ADMIN_SLUG>` — a secret path, not `/admin` (see [Admin access](#admin-access))
 
 ---
 
@@ -107,10 +107,13 @@ git clone https://github.com/Wapiy-y/p-massage.git
 cd p-massage
 npm install
 
-cp .dev.vars.example .dev.vars     # set ADMIN_TOKEN and IP_SALT
-npm run db:migrate:local
-npm run db:seed:local              # demo profile, 5 services, 8 reviews, 2 pending
+cp .dev.vars.example .dev.vars     # set ADMIN_SLUG, SESSION_SECRET, IP_SALT
+npm run db:migrate:local           # schema + demo content + the seeded admin
 npm run dev                        # http://localhost:8787
+
+# Admin (local): http://localhost:8787/admin-local-dev
+#   username: admin
+#   password: whatever you seed with (see Admin access)
 ```
 
 Local data is stored in `.wrangler/state/`. Delete that directory to start clean. Note the
@@ -233,7 +236,8 @@ To deploy by hand instead:
 ```bash
 npx wrangler login
 npx wrangler d1 migrations apply massage-feedback --remote
-npx wrangler secret put ADMIN_TOKEN
+npx wrangler secret put ADMIN_SLUG        # e.g. admin-7m4x2q — the admin path
+npx wrangler secret put SESSION_SECRET    # openssl rand -hex 32
 npx wrangler deploy
 ```
 
@@ -271,8 +275,9 @@ are exercised by running `npm run dev` and clicking through — see the manual c
 - [ ] `/` renders profile, services and published reviews
 - [ ] Star filter and "Load more" both work
 - [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
-- [ ] `/admin` rejects a wrong passphrase, accepts the right one, publishes the review
-- [ ] Eleven wrong passphrases in a row return `429` with a `Retry-After` header
+- [ ] `/admin` and `/admin.html` both return 404
+- [ ] `/<slug>` shows the login gate; wrong credentials are rejected, correct ones open the queue
+- [ ] Eleven wrong sign-ins in a row return `429` with a `Retry-After` header
 - [ ] Published review appears on `/` without a reload
 - [ ] Unknown path returns the 404 page
 
@@ -296,6 +301,50 @@ Guidelines the codebase follows, so changes stay cheap:
   git history only.
 - **`npm run check` must pass** before a commit — it is the same gate the Cloudflare build
   runs.
+
+---
+
+## Admin access
+
+There are **two independent barriers**, and they protect different things:
+
+1. **A secret path.** The admin area lives at `/<ADMIN_SLUG>` (for example `/admin-7m4x2q`), and
+   its API at `/api/<ADMIN_SLUG>/…`. Anything else — `/admin`, `/admin.html`, `/api/admin/*` —
+   returns a plain `404`, so a scanner learns nothing about whether an admin area exists.
+   The slug is a **Worker secret**, not a committed variable, and the admin page is bundled
+   into the Worker rather than served from `public/`, so neither the URL nor the filename
+   appears in this repository.
+
+2. **A username and password.** One seeded account, verified against a PBKDF2-SHA256 hash in
+   D1. There is no signup, no password reset email, and no account list.
+
+Obscurity alone is not security. The slug keeps `wp-admin`-style scanners away; the password
+and the 10-attempts-per-15-minutes limiter are what actually stop someone who has the URL.
+
+### The seeded account
+
+`migrations/0003_admin_users.sql` creates the `admins` table and seeds one row:
+
+| Field    | Value                                                   |
+| -------- | ------------------------------------------------------- |
+| username | `admin`                                                 |
+| password | **not in this repository** — only its hash is committed |
+| hashing  | PBKDF2-SHA256, 10,000 iterations, 16-byte salt          |
+
+Ask whoever deployed it for the password, or set a new one:
+
+```bash
+node scripts/hash-password.mjs 'a long new password'
+# then:
+npx wrangler d1 execute massage-feedback --remote --command \
+  "UPDATE admins SET password_hash = '<printed hash>' WHERE username = 'admin'"
+```
+
+10,000 iterations is deliberate: PBKDF2 runs natively in Workers, but 100k risks the free
+plan's 10 ms CPU budget and would make login fail outright. Online guessing is capped by the
+attempt limiter, and the password is long and random, so the trade is sound.
+
+To rotate the admin path itself: `npx wrangler secret put ADMIN_SLUG` and redeploy.
 
 ---
 
@@ -327,7 +376,10 @@ Guidelines the codebase follows, so changes stay cheap:
 - The feed filters by star rating only, not by service.
 - No sitemap or OG share image.
 - No analytics, deliberately.
-- `/admin` is protected by a passphrase alone. Cloudflare Access is **not** configured:
-  self-hosted Access apps need a hostname on a zone you own, and the Worker lives on
-  `*.workers.dev`. Adding a custom domain enables it; until then the passphrase plus
-  attempt throttling is the whole gate.
+- The admin area is protected by a secret URL plus password/attempt-throttling. Cloudflare
+  Access is **not** configured: self-hosted Access apps need a hostname on a zone you own,
+  and the Worker lives on `*.workers.dev`. Adding a custom domain would let you put Access in
+  front of `/<slug>` as a third barrier.
+- The secret slug is obscurity, not authorisation. Treat the password as the real control.
+- There is no password reset flow and no way to change the password from the UI — rotation is
+  the CLI command above.
