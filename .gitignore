@@ -4,3 +4,5 @@ data/
 .dev.vars
 .wrangler/
 *.log
+.dry-run/
+dist/

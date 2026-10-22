@@ -184,6 +184,40 @@ p-massage/
 
 ---
 
+## Automatic deploys (GitHub Actions)
+
+Two workflows, one file: `.github/workflows/ci-cd.yml`.
+
+| Trigger | What runs |
+|---|---|
+| Pull request | Install, typecheck, tests, `wrangler deploy --dry-run` — **no credentials**, so PRs from forks are safe |
+| Push to `main` (a merged PR) | The same checks, then `wrangler d1 migrations apply --remote` and `wrangler deploy`, then a smoke test against the live URLs |
+
+Migrations run before every deploy and are idempotent — D1 records what it has applied in
+`d1_migrations`, so it only ever runs new files. Schema therefore lands ahead of the code
+that needs it.
+
+### One-time setup
+
+Repository → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret | Value |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | API token with **Account → Workers Scripts → Edit** and **Account → D1 → Edit** |
+| `CLOUDFLARE_ACCOUNT_ID` | `9af6679d3d31d759e1c1a24e2e475bf7` |
+
+Create the token at <https://dash.cloudflare.com/profile/api-tokens> → *Create Token* →
+*Custom token*. Scope it to the one account; do not use a Global API Key.
+
+Until both secrets exist the deploy job fails early with an explicit message rather than a
+cryptic Wrangler error. Worker **secrets** (`ADMIN_TOKEN`, `IP_SALT`, `TURNSTILE_SECRET`) are
+stored in Cloudflare and survive deploys — they are not part of this pipeline.
+
+The `production` environment on the deploy job is a hook for later: add required reviewers
+there to gate deploys without editing the workflow.
+
+---
+
 ## Known gaps
 
 - Reviews cannot be edited or withdrawn by their author (secret-link flow is a v2 idea)

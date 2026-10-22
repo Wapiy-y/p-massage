@@ -14,12 +14,12 @@ not_found_handling = "404-page"
 
 [vars]
 RATE_LIMIT_MAX = "3"
-TURNSTILE_SITE_KEY = ""
+TURNSTILE_SITE_KEY = "0x4AAAAAAFg1_CZYHA6TUoeq"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "massage-feedback"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "ef09ab96-ad99-48ab-abdb-4b28509c0119"
 migrations_dir = "migrations"
 
 [observability]
