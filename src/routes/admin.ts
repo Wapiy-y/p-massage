@@ -14,7 +14,9 @@ import { clientIp, httpError, isProduction, json, jsonWithCookie, readJson } fro
 import { hashIp } from '../lib/ip-hash';
 import { verifyPassword } from '../lib/password';
 import { hasAdminAccess, requireAdmin } from '../middleware/require-admin';
+import { s3Config } from '../lib/s3';
 import * as adminRepo from '../repositories/admins';
+import * as imageService from '../services/images';
 import * as rateLimitRepo from '../repositories/rate-limit';
 import { authenticateAdmin, type AttemptCounter } from '../services/admin-auth';
 import { getEditableContent, updateContent } from '../services/profile';
@@ -132,6 +134,59 @@ guarded.patch('/api/:scope/reviews/:id', requireAdmin, async (c) => {
 guarded.delete('/api/:scope/reviews/:id', requireAdmin, async (c) => {
   const removed = await deleteReview(c.env.DB, c.req.param('id'));
   if (!removed) return json(c, 404, { message: 'Review not found.' });
+  return json(c, 200, { ok: true });
+});
+
+/* ------------------------------------------------------------------ images */
+
+/** Every image route needs storage; refuse rather than half-work. */
+function requireStorage(env: AppEnv['Bindings']) {
+  const config = s3Config(env);
+  if (!config) throw httpError(503, 'Storage is not configured.');
+  return config;
+}
+
+guarded.get('/api/:scope/images', requireAdmin, async (c) => {
+  requireStorage(c.env);
+  return json(c, 200, await imageService.listForAdmin(c.env.DB));
+});
+
+guarded.post('/api/:scope/images/presign', requireAdmin, async (c) => {
+  const config = requireStorage(c.env);
+  const body = await readJson(c, 4096);
+
+  const result = await imageService.presignUpload(c.env.DB, config, {
+    kind: body.kind === 'profile' ? 'profile' : 'gallery',
+    contentType: typeof body.content_type === 'string' ? body.content_type : '',
+    bytes: Number(body.bytes)
+  });
+
+  if (!result.ok) {
+    return json(c, result.status, {
+      errors: result.errors,
+      message: result.errors.file ?? result.errors._form ?? 'Upload rejected.'
+    });
+  }
+  return json(c, 200, result.value);
+});
+
+guarded.post('/api/:scope/images/:id/confirm', requireAdmin, async (c) => {
+  const config = requireStorage(c.env);
+  const result = await imageService.confirmUpload(c.env.DB, config, c.req.param('id'));
+
+  if (!result.ok) {
+    return json(c, result.status, {
+      errors: result.errors,
+      message: result.errors.file ?? result.errors._form ?? 'Upload failed.'
+    });
+  }
+  return json(c, 200, { ok: true, image: { id: result.value.id, kind: result.value.kind } });
+});
+
+guarded.delete('/api/:scope/images/:id', requireAdmin, async (c) => {
+  const config = requireStorage(c.env);
+  const removed = await imageService.deleteImage(c.env.DB, config, c.req.param('id'));
+  if (!removed) return json(c, 404, { message: 'Image not found.' });
   return json(c, 200, { ok: true });
 });
 

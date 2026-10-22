@@ -274,6 +274,8 @@ are exercised by running `npm run dev` and clicking through — see the manual c
 
 - [ ] `/` renders profile, services and published reviews
 - [ ] The location button in the profile card opens directions in a new tab
+- [ ] Uploading a profile photo shows it as a circular avatar on the intro
+- [ ] Adding an 11th gallery photo is refused with a clear message
 - [ ] Feedback carousel advances on its own and pauses on hover/focus
 - [ ] On a laptop the whole page fits one screen with no scrolling; on a phone it stacks
 - [ ] `/feedback` submits, shows the thank-you screen, and the review appears as pending
@@ -367,6 +369,51 @@ plan's 10 ms CPU budget and would make login fail outright. Online guessing is c
 attempt limiter, and the password is long and random, so the trade is sound.
 
 To rotate the admin path itself: `npx wrangler secret put ADMIN_SLUG` and redeploy.
+
+---
+
+## Images
+
+Two kinds, both uploaded from the admin panel:
+
+| Kind      | Limit                             | Shown as                            |
+| --------- | --------------------------------- | ----------------------------------- |
+| `profile` | 1 (a new upload replaces the old) | circular avatar in the profile card |
+| `gallery` | 10                                | horizontal strip below the columns  |
+
+Objects live in S3-compatible storage (Neon). **The bucket is private** — nothing is served
+directly from it.
+
+### Upload path
+
+```
+browser ──POST /api/<slug>/images/presign──▶ Worker   validates type, size, gallery limit
+        ◀── { id, uploadUrl (presigned PUT, 10 min) } ──
+browser ──PUT file─────────────────────────▶ storage  (never through the Worker)
+browser ──POST /api/<slug>/images/:id/confirm──▶ Worker  HEADs the object, marks it ready
+```
+
+The row is created as `pending` at presign time, so an abandoned upload cannot slip past the
+10-image limit; a scheduled job deletes stale pending rows and their objects after an hour.
+
+### Rules enforced server-side
+
+- JPEG, PNG or WebP only — not the file extension, the declared content type
+- 5 MB maximum, re-checked with `HEAD` on confirm rather than trusting the client
+- Ten gallery images, counting uploads in flight
+- Keys are generated server-side (`gallery-<id>.webp`), never taken from the client
+
+### Serving
+
+`GET /img/:key` looks the key up in D1, refuses anything not `ready`, then streams the object
+from storage with `cache-control: public, max-age=31536000, immutable` and a Cloudflare Cache
+API layer in front. The browser never sees a bucket URL or a signed link.
+
+### Cleanup
+
+- Deleting an image removes the row and the object.
+- Replacing the profile photo deletes the previous object.
+- The daily cron purges uploads that were presigned but never confirmed.
 
 ---
 

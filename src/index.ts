@@ -10,7 +10,10 @@ import adminPageHtml from './pages/admin.html';
 import { json } from './lib/http';
 import { securityHeaders } from './middleware/security-headers';
 import { purgeExpired } from './repositories/rate-limit';
+import { purgeStaleUploads } from './services/images';
+import { s3Config } from './lib/s3';
 import { adminRoutes } from './routes/admin';
+import { imageRoutes } from './routes/images';
 import { publicRoutes } from './routes/public';
 import type { AppEnv } from './types';
 
@@ -20,6 +23,7 @@ app.use('*', securityHeaders);
 
 app.route('/', publicRoutes);
 app.route('/', adminRoutes);
+app.route('/', imageRoutes);
 
 /** Unknown API paths must answer as JSON, not fall through to an HTML page. */
 app.all('/api/*', (c) => json(c, 404, { message: 'Not found.' }));
@@ -66,12 +70,24 @@ app.notFound((c) => json(c, 404, { message: 'Not found.' }));
 export default {
   fetch: app.fetch,
 
-  /** Daily IP-hash purge — the cron trigger a Pages Function cannot have. */
+  /**
+   * Daily housekeeping: expired IP hashes, and uploads that were presigned but
+   * never confirmed (so they stop holding gallery slots and storage).
+   */
   scheduled(_controller: ScheduledController, env: AppEnv['Bindings'], ctx: ExecutionContext) {
     ctx.waitUntil(
       purgeExpired(env.DB).then((removed) => {
         console.log(`purged ${removed} rate-limit row(s)`);
       })
     );
+
+    const config = s3Config(env);
+    if (config) {
+      ctx.waitUntil(
+        purgeStaleUploads(env.DB, config).then((removed) => {
+          console.log(`purged ${removed} stale upload(s)`);
+        })
+      );
+    }
   }
 } satisfies ExportedHandler<AppEnv['Bindings']>;

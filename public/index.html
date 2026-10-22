@@ -13,20 +13,17 @@
 <div class="page">
   <div class="wrap">
 
-    <div class="topbar">
-      <div class="monogram" id="monogram" aria-hidden="true"></div>
-      <div class="who">
-        <strong id="top-name">&nbsp;</strong>
-        <span id="top-loc">Massage therapist</span>
-      </div>
-    </div>
-
     <main class="layout">
         <!-- Hero: who this is, what clients think, how to book -->
         <section class="card hero" aria-labelledby="h-name">
-          <p class="eyebrow">Independent massage therapist</p>
-          <h1 id="h-name">&nbsp;</h1>
-          <p class="tagline small" id="p-tagline">&nbsp;</p>
+          <div class="identity">
+            <div class="avatar" id="avatar" aria-hidden="true"></div>
+            <div class="identity-text">
+              <p class="eyebrow">Independent massage therapist</p>
+              <h1 id="h-name">&nbsp;</h1>
+              <p class="tagline small" id="p-tagline">&nbsp;</p>
+            </div>
+          </div>
 
           <div class="rating-line">
             <span class="avg" id="avg">—</span>
@@ -63,6 +60,14 @@
         <section class="sec-hours" aria-labelledby="h-hours">
           <div class="section-head"><h2 id="h-hours">Opening hours</h2></div>
           <div class="card"><ul class="rows" id="hours-list"></ul></div>
+        </section>
+
+        <section class="sec-gallery" id="gallery-section" aria-labelledby="h-gallery" hidden>
+          <div class="section-head">
+            <h2 id="h-gallery">Gallery</h2>
+            <span class="tiny muted" id="gallery-note"></span>
+          </div>
+          <div class="gallery-strip" id="gallery-strip"></div>
         </section>
 
         <!-- Client feedback: one card at a time, advancing on its own -->

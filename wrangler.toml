@@ -16,6 +16,12 @@ not_found_handling = "404-page"
 RATE_LIMIT_MAX = "3"
 TURNSTILE_SITE_KEY = "0x4AAAAAAFg1_CZYHA6TUoeq"
 
+# S3-compatible object storage (Neon). Bucket is private; the Worker signs its
+# own requests. Access keys are Worker secrets, never committed.
+S3_ENDPOINT = "https://br-shy-river-aomqvcag.storage.c-2.ap-southeast-1.aws.neon.tech"
+S3_BUCKET = "bio"
+S3_REGION = "ap-southeast-1"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "massage-feedback"

@@ -16,7 +16,8 @@ async function boot() {
   if (ok && data?.authed) {
     $('gate').hidden = true;
     $('app').hidden = false;
-    await Promise.all([loadQueue(), loadProfile()]);
+    wirePhotoInputs();
+    await Promise.all([loadQueue(), loadProfile(), loadImages()]);
   } else {
     $('gate').hidden = false;
     $('app').hidden = true;
@@ -210,6 +211,134 @@ for (const tab of document.querySelectorAll('.tab')) {
     tab.setAttribute('aria-selected', 'true');
     currentStatus = tab.dataset.status;
     loadQueue();
+  });
+}
+
+
+/* ---------------------------------------------------------------- photos */
+
+const MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED = ['image/jpeg', 'image/png', 'image/webp'];
+let galleryLimit = 10;
+
+function photoError(message) {
+  const node = $('photo-err');
+  if (node) node.textContent = message || '';
+}
+
+function thumb(image, onRemove) {
+  const wrap = document.createElement('div');
+  wrap.className = 'gallery-thumb';
+
+  const img = document.createElement('img');
+  img.src = image.url;
+  img.alt = '';
+  img.loading = 'lazy';
+  wrap.append(img);
+
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'thumb-del';
+  remove.setAttribute('aria-label', 'Remove photo');
+  remove.textContent = '×';
+  remove.addEventListener('click', () => onRemove(image.id));
+  wrap.append(remove);
+
+  return wrap;
+}
+
+async function loadImages() {
+  const { ok, data } = await api(`${API}/images`);
+  if (!ok || !data) return;
+
+  galleryLimit = data.maxGallery ?? 10;
+
+  const profileSlot = $('profile-photo');
+  profileSlot.replaceChildren();
+  if (data.profile) {
+    const img = document.createElement('img');
+    img.src = data.profile.url;
+    img.alt = 'Profile photo';
+    profileSlot.append(img);
+    profileSlot.append(
+      thumb(data.profile, (id) => removeImage(id)).querySelector('.thumb-del')
+    );
+  } else {
+    profileSlot.append(Object.assign(document.createElement('span'), { className: 'tiny muted', textContent: 'None' }));
+  }
+
+  const grid = $('gallery-grid');
+  grid.replaceChildren();
+  for (const image of data.gallery ?? []) {
+    grid.append(thumb(image, (id) => removeImage(id)));
+  }
+
+  $('gallery-count').textContent = `${data.gallery.length} / ${galleryLimit}`;
+  const atLimit = data.gallery.length >= galleryLimit;
+  $('gallery-add').classList.toggle('is-disabled', atLimit);
+  $('gallery-add').title = atLimit ? 'Gallery is full — remove a photo first' : '';
+  $('gallery-input').disabled = atLimit;
+}
+
+async function removeImage(id) {
+  photoError('');
+  const { res, data } = await api(`${API}/images/${id}`, { method: 'DELETE' });
+  if (!res.ok) {
+    photoError(data?.message || 'Could not remove that photo.');
+    return;
+  }
+  await loadImages();
+}
+
+async function uploadImage(kind, file) {
+  photoError('');
+
+  if (!ALLOWED.includes(file.type)) {
+    photoError('Use a JPEG, PNG or WebP image.');
+    return;
+  }
+  if (file.size > MAX_BYTES) {
+    photoError('Keep the image under 5 MB.');
+    return;
+  }
+
+  const presign = await api(`${API}/images/presign`, {
+    method: 'POST',
+    body: JSON.stringify({ kind, content_type: file.type, bytes: file.size })
+  });
+
+  if (!presign.res.ok) {
+    photoError(presign.data?.message || 'Upload rejected.');
+    return;
+  }
+
+  // Straight to storage: the Worker never proxies the file body.
+  const put = await fetch(presign.data.uploadUrl, { method: 'PUT', body: file });
+  if (!put.ok) {
+    photoError('Storage rejected the upload.');
+    return;
+  }
+
+  const confirm = await api(`${API}/images/${presign.data.id}/confirm`, { method: 'POST' });
+  if (!confirm.res.ok) {
+    photoError(confirm.data?.message || 'Upload could not be verified.');
+    return;
+  }
+
+  await loadImages();
+}
+
+function wirePhotoInputs() {
+  $('profile-input').addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (file) await uploadImage('profile', file);
+    event.target.value = '';
+  });
+
+  $('gallery-input').addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (file) await uploadImage('gallery', file);
+    event.target.value = '';
   });
 }
 

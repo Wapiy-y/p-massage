@@ -2,7 +2,7 @@
   "name": "p-massage",
   "version": "1.0.0",
   "private": true,
-  "description": "Mobile-first feedback site for an independent massage therapist \u2014 Cloudflare Worker, Hono, D1",
+  "description": "Mobile-first feedback site for an independent massage therapist — Cloudflare Worker, Hono, D1",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -19,6 +19,7 @@
     "db:export": "wrangler d1 export massage-feedback --remote --output=backup.sql"
   },
   "dependencies": {
+    "aws4fetch": "^1.0.20",
     "hono": "^4.6.14"
   },
   "devDependencies": {
