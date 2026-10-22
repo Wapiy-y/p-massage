@@ -15,7 +15,8 @@ text-only feedback, no photo upload, no PWA.
 ## Run it
 
 ```bash
-cd massage-feedback
+git clone https://github.com/Wapiy-y/p-massage.git
+cd p-massage
 node src/server.js            # http://localhost:8787
 ```
 
@@ -114,7 +115,7 @@ Body limit 16 KB, `application/json` only. The raw IP is never stored — only
 ## Layout
 
 ```
-massage-feedback/
+p-massage/
 ├─ src/
 │  ├─ server.js        # routing, static files, sessions, Turnstile
 │  ├─ db.js            # schema, queries, seed (mirrors the D1 schema)
