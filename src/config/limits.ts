@@ -38,6 +38,5 @@ export const MIN_FILL_TIME_MS = 1200;
 /** Paths that map onto a static page rather than a directory. */
 export const PAGE_ALIASES: Record<string, string> = {
   '/feedback': '/feedback.html',
-  '/admin': '/admin.html',
   '/privacy': '/privacy.html'
 };

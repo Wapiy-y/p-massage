@@ -22,6 +22,12 @@ database_name = "massage-feedback"
 database_id = "ef09ab96-ad99-48ab-abdb-4b28509c0119"
 migrations_dir = "migrations"
 
+# The admin page is bundled into the Worker (never served from public/) so its
+# secret path is not guessable from the repository.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+
 [observability]
 enabled = true
 

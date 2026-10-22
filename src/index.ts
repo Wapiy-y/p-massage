@@ -4,7 +4,9 @@
  * the route and middleware layers.
  */
 import { Hono } from 'hono';
+import { adminPagePath } from './config/admin-path';
 import { PAGE_ALIASES } from './config/limits';
+import adminPageHtml from './pages/admin.html';
 import { json } from './lib/http';
 import { securityHeaders } from './middleware/security-headers';
 import { purgeExpired } from './repositories/rate-limit';
@@ -22,12 +24,28 @@ app.route('/', adminRoutes);
 /** Unknown API paths must answer as JSON, not fall through to an HTML page. */
 app.all('/api/*', (c) => json(c, 404, { message: 'Not found.' }));
 
-/** Clean URLs for the static pages (/feedback → /feedback.html). */
+/**
+ * Static pages, plus the admin page at the secret slug.
+ *
+ * The admin HTML is bundled into the Worker rather than served from public/:
+ * a static file would be reachable at a guessable path and its name would leak
+ * the slug in this repository.
+ */
 app.get('*', (c) => {
   const url = new URL(c.req.url);
   const path = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, '') : url.pathname;
-  const alias = PAGE_ALIASES[path];
 
+  if (path === adminPagePath(c.env)) {
+    return new Response(adminPageHtml, {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-robots-tag': 'noindex, nofollow'
+      }
+    });
+  }
+
+  const alias = PAGE_ALIASES[path];
   if (alias) {
     return c.env.ASSETS.fetch(new Request(new URL(alias, url.origin).toString(), c.req.raw));
   }

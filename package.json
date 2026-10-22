@@ -8,15 +8,14 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
+    "lint": "eslint . --cache",
+    "lint:fix": "eslint . --cache --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm test",
     "test": "vitest run",
-    "db:migrate:local": "wrangler d1 execute massage-feedback --local --file=migrations/0001_init.sql",
+    "db:migrate:local": "wrangler d1 migrations apply massage-feedback --local",
     "db:migrate:remote": "wrangler d1 migrations apply massage-feedback --remote",
-    "db:seed:local": "wrangler d1 execute massage-feedback --local --file=migrations/0002_seed.sql",
     "db:export": "wrangler d1 export massage-feedback --remote --output=backup.sql"
   },
   "dependencies": {
