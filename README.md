@@ -115,6 +115,18 @@ reviews" to "leaving one". Add a link on `/` and drop `noindex` if that ever mat
 
 ---
 
+## Where it runs
+
+- Worker: `massage` → <https://massage.wafiyabdullah39.workers.dev>
+- D1: `massage-feedback` (`ef09ab96-ad99-48ab-abdb-4b28509c0119`, APAC)
+- Turnstile widget: `massage`, hostname-scoped to the Worker above
+
+The Worker is named `massage` while the database is `massage-feedback` — they were
+named at different times. `wrangler.toml` must keep `name = "massage"` in step with the
+dashboard, otherwise a Git build and a CLI deploy target two different Workers.
+
+---
+
 ## API
 
 | Method | Path | Auth | Purpose |
