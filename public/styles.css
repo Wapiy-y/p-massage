@@ -730,21 +730,30 @@ details.editor[open] summary::before { transform: rotate(45deg); }
    ------------------------------------------------------------------ */
 .gallery-strip {
   display: flex;
-  gap: 8px;
+  max-width: 100%;
+  gap: 10px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding-bottom: 6px;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+/* Fade the right edge only when there is more to see. */
+.gallery-strip.is-scrollable {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 
 .gallery-strip img {
-  width: 72px;
-  height: 72px;
+  width: 168px;
+  height: 168px;
   flex: none;
-  border-radius: 12px;
+  border-radius: 16px;
   object-fit: cover;
   border: 1px solid var(--line);
   background: var(--surface-2);
+  scroll-snap-align: start;
 }
 
 /* ------------------------------------------------------------------
@@ -868,12 +877,13 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .layout {
     display: grid;
     grid-template-columns: 1.02fr 0.98fr;
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows: auto auto auto;
+    /* Rows pair items of similar height, so neither column is left with a hole
+       where a spanning card would have stretched. */
     grid-template-areas:
-      'hero services'
-      'about services'
-      'hours reviews'
-      'gallery gallery';
+      'hero    services'
+      'gallery hours'
+      'about   reviews';
     gap: 10px 18px;
     align-content: start;
     flex: 1;
@@ -883,6 +893,7 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   .layout > section {
     margin-top: 0;
     min-height: 0;
+    min-width: 0;
   }
 
   .hero { grid-area: hero; }
@@ -890,7 +901,7 @@ details.editor[open] summary::before { transform: rotate(45deg); }
   /* Smaller avatar and thumbs so four rows still fit 720px. */
   .avatar { width: 52px; height: 52px; }
   .identity { gap: 12px; }
-  .gallery-strip img { width: 56px; height: 56px; border-radius: 10px; }
+  .gallery-strip img { width: 140px; height: 140px; border-radius: 14px; }
   .section-head { margin-bottom: 6px; }
   .rows li { padding: 5px 0; }
   .svc { padding: 7px 0; }

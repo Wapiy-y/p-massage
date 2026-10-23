@@ -45,7 +45,15 @@
           </div>
         </section>
 
-        <!-- About -->
+        <!-- Gallery: a browsing surface, so the photos are large and scroll sideways -->
+        <section class="sec-gallery" id="gallery-section" aria-labelledby="h-gallery" hidden>
+          <div class="section-head">
+            <h2 id="h-gallery">Gallery</h2>
+            <span class="tiny muted" id="gallery-note"></span>
+          </div>
+          <div class="gallery-strip" id="gallery-strip"></div>
+        </section>
+
         <section class="sec-about" aria-labelledby="h-about">
           <div class="section-head"><h2 id="h-about">About</h2></div>
           <div class="card"><p class="small" id="p-bio" style="margin:0"></p></div>
@@ -60,14 +68,6 @@
         <section class="sec-hours" aria-labelledby="h-hours">
           <div class="section-head"><h2 id="h-hours">Opening hours</h2></div>
           <div class="card"><ul class="rows" id="hours-list"></ul></div>
-        </section>
-
-        <section class="sec-gallery" id="gallery-section" aria-labelledby="h-gallery" hidden>
-          <div class="section-head">
-            <h2 id="h-gallery">Gallery</h2>
-            <span class="tiny muted" id="gallery-note"></span>
-          </div>
-          <div class="gallery-strip" id="gallery-strip"></div>
         </section>
 
         <!-- Client feedback: one card at a time, advancing on its own -->

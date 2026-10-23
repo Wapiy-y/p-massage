@@ -57,6 +57,14 @@ function renderGallery(images) {
       return img;
     })
   );
+
+  // Only hint at scrolling when the photos actually overflow.
+  const updateAffordance = () => {
+    strip.classList.toggle('is-scrollable', strip.scrollWidth > strip.clientWidth + 4);
+  };
+  requestAnimationFrame(updateAffordance);
+  strip.addEventListener('scroll', updateAffordance, { passive: true });
+  window.addEventListener('resize', updateAffordance);
 }
 
 function renderProfile({ profile, services }) {
