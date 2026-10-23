@@ -838,23 +838,23 @@ details.editor[open] summary::before { transform: rotate(45deg); }
    Mobile keeps the stacked layout above untouched.
    ------------------------------------------------------------------ */
 @media (min-width: 900px) and (min-height: 620px) {
-  html,
-  body {
+  /*
+   * Scoped to the intro page on purpose. These rules lock the layout to one
+   * screen, which is wrong for /feedback and /admin — they must scroll.
+   */
+  body.page-intro {
     height: 100%;
-  }
-
-  body {
     overflow: hidden;
   }
 
-  .page {
+  body.page-intro .page {
     display: flex;
     flex-direction: column;
     height: 100dvh;
     padding-bottom: 0;
   }
 
-  .wrap {
+  body.page-intro .wrap {
     display: flex;
     flex-direction: column;
     flex: 1;
@@ -920,7 +920,7 @@ details.editor[open] summary::before { transform: rotate(45deg); }
     overflow: hidden;
   }
 
-  .footer {
+  body.page-intro .footer {
     flex: none;
     margin-top: 0;
     padding: 8px 0 6px;
