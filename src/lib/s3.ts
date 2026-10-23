@@ -76,6 +76,59 @@ export async function headObject(config: S3Config, key: string): Promise<Respons
   return config.client.fetch(objectUrl(config, key), { method: 'HEAD' });
 }
 
+/** One-byte GET, used when HEAD is unsupported by the provider. */
+export async function rangedGet(config: S3Config, key: string): Promise<Response> {
+  return config.client.fetch(objectUrl(config, key), { headers: { Range: 'bytes=0-0' } });
+}
+
+export interface ObjectStat {
+  found: boolean;
+  /** Size in bytes when the provider reports it. */
+  bytes: number | null;
+  /** Status of the check that decided the outcome. */
+  status: number;
+  /** True when HEAD was refused and the fallback was used. */
+  viaRangedGet: boolean;
+}
+
+/**
+ * Does this object exist?
+ *
+ * Not every S3-compatible provider implements HEAD — Neon's answered with a
+ * non-2xx even though the object was there, which made every upload look
+ * missing. A one-byte ranged GET is the fallback, and its Content-Range carries
+ * the full size.
+ */
+export async function statObject(config: S3Config, key: string): Promise<ObjectStat> {
+  const head = await headObject(config, key);
+  if (head.ok) {
+    const declared = Number(head.headers.get('content-length') ?? 0);
+    return {
+      found: true,
+      bytes: declared > 0 ? declared : null,
+      status: head.status,
+      viaRangedGet: false
+    };
+  }
+  if (head.status === 404) {
+    return { found: false, bytes: null, status: 404, viaRangedGet: false };
+  }
+
+  const ranged = await rangedGet(config, key);
+  if (ranged.ok || ranged.status === 206) {
+    const total = ranged.headers.get('content-range')?.split('/')[1];
+    const parsed = total ? Number(total) : Number(ranged.headers.get('content-length') ?? 0);
+    return {
+      found: true,
+      bytes: Number.isFinite(parsed) && parsed > 0 ? parsed : null,
+      status: ranged.status,
+      viaRangedGet: true
+    };
+  }
+
+  return { found: false, bytes: null, status: ranged.status, viaRangedGet: true };
+}
+
 /** Best-effort delete: a missing object is not an error worth failing on. */
 export async function deleteObject(config: S3Config, key: string): Promise<void> {
   try {
